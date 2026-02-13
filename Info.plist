@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Privacy Permissions -->
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Photo Coach Pro needs access to import photos for editing. Your photos stay on your device and are never uploaded.</string>
+
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>Photo Coach Pro can save your edited photos back to your library.</string>
+
+    <key>NSCameraUsageDescription</key>
+    <string>Photo Coach Pro can capture photos with live coaching feedback to help improve your photography skills.</string>
+
+    <!-- File Access -->
+    <key>UISupportsDocumentBrowser</key>
+    <true/>
+
+    <key>UIFileSharingEnabled</key>
+    <true/>
+
+    <!-- Supported File Types -->
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Images</string>
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.image</string>
+                <string>public.jpeg</string>
+                <string>public.png</string>
+                <string>public.heic</string>
+                <string>public.tiff</string>
+                <string>com.adobe.raw-image</string>
+            </array>
+        </dict>
+    </array>
+
+    <!-- Scene Configuration (iOS) -->
+    <key>UIApplicationSceneManifest</key>
+    <dict>
+        <key>UIApplicationSupportsMultipleScenes</key>
+        <true/>
+        <key>UISceneConfigurations</key>
+        <dict/>
+    </dict>
+
+    <!-- Appearance -->
+    <key>UIUserInterfaceStyle</key>
+    <string>Automatic</string>
+
+    <!-- iPad Multitasking -->
+    <key>UIRequiresFullScreen</key>
+    <false/>
+
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+
+    <!-- macOS Settings -->
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+
+    <!-- Accessibility -->
+    <key>UIAccessibilityContentSizeCategoryAware</key>
+    <true/>
+
+    <!-- Privacy - No Analytics -->
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
+</dict>
+</plist>

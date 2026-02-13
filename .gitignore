@@ -1,0 +1,70 @@
+# Xcode
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+*.xcworkspace/*
+!*.xcworkspace/contents.xcworkspacedata
+!*.xcworkspace/xcshareddata/
+
+# Swift Package Manager
+.build/
+Packages/
+*.xcodeproj
+Package.resolved
+
+# CocoaPods
+Pods/
+*.podspec
+
+# Carthage
+Carthage/Build/
+
+# Build Products
+build/
+DerivedData/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# SwiftData
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# User-specific
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+*.swp
+*~.nib
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Files that might appear in the root
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+
+# App-specific
+*.log
+timeline.xctimeline
+playground.xcworkspace
+
+# Backup files
+*.orig
+*~
+
+# Temporary files
+tmp/
+temp/
+*.tmp
