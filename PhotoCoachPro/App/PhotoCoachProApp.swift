@@ -136,7 +136,6 @@ struct CritiqueDashboardView: View {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 200, maximum: 300), spacing: 16)], spacing: 16) {
                     ForEach(photos) { photo in
                         Button(action: {
-                            print("🔴 BUTTON CLICKED: \(photo.fileName)")
                             analyzePhoto(photo)
                         }) {
                             VStack {
@@ -160,35 +159,22 @@ struct CritiqueDashboardView: View {
     }
 
     private func analyzePhoto(_ photo: PhotoRecord) {
-        print("🎯 Starting analysis for: \(photo.fileName)")
         selectedPhoto = photo
         isAnalyzing = true
 
         Task {
             do {
-                print("🎯 Loading image...")
-                // Load the image
                 let loaded = try await appState.imageLoader.load(from: photo.fileURL)
-                print("🎯 Image loaded, running AI analysis...")
-
-                // Run AI analysis
                 let result = try await analyzer.analyze(loaded.image, photoID: photo.id)
-                print("🎯 Analysis complete! Score: \(result.overallScore)")
 
-                // Save to database
-                print("🎯 Saving to database...")
                 let record = try CritiqueRecord.from(result)
                 try appState.database.saveCritique(record)
-                print("🎯 Saved successfully")
 
-                // Show results
                 await MainActor.run {
-                    print("🎯 Showing results UI")
                     critiqueResult = result
                     isAnalyzing = false
                 }
             } catch {
-                print("❌ Analysis error: \(error)")
                 await MainActor.run {
                     appState.errorMessage = "Analysis failed: \(error.localizedDescription)"
                     isAnalyzing = false
