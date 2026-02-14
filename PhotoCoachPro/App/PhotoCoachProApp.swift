@@ -34,46 +34,65 @@ struct PhotoCoachProApp: App {
 // MARK: - Content View (Main Navigation)
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
+    @State private var selectedTab = 0
 
     var body: some View {
-        #if os(iOS)
-        TabView(selection: $appState.selectedTab) {
+        TabView(selection: $selectedTab) {
+            // Phase 1: Photo Library & Editor
             HomeView()
                 .tabItem {
-                    Label("Library", systemImage: "photo.on.rectangle")
+                    Label("Library", systemImage: "photo.stack")
                 }
-                .tag(AppState.AppTab.home)
+                .tag(0)
 
-            if appState.currentPhoto != nil {
-                EditorView()
-                    .tabItem {
-                        Label("Edit", systemImage: "slider.horizontal.3")
-                    }
-                    .tag(AppState.AppTab.editor)
-            }
-        }
-        #elseif os(macOS)
-        NavigationSplitView {
-            List(selection: $appState.selectedTab) {
-                Label("Library", systemImage: "photo.on.rectangle")
-                    .tag(AppState.AppTab.home)
-
-                if appState.currentPhoto != nil {
-                    Label("Edit", systemImage: "slider.horizontal.3")
-                        .tag(AppState.AppTab.editor)
+            // Phase 4: Presets & Templates
+            PresetLibraryView()
+                .tabItem {
+                    Label("Presets", systemImage: "photo.stack.fill")
                 }
-            }
-            .navigationSplitViewColumnWidth(min: 200, ideal: 200)
-        } detail: {
-            switch appState.selectedTab {
-            case .home:
-                HomeView()
-            case .editor:
-                EditorView()
-            case .export:
-                Text("Export")
-            }
+                .tag(1)
+
+            // Phase 3: AI Coaching
+            CritiqueDashboardView()
+                .tabItem {
+                    Label("Coaching", systemImage: "star.fill")
+                }
+                .tag(2)
+
+            // Phase 5: Cloud Sync
+            SyncStatusView()
+                .tabItem {
+                    Label("Sync", systemImage: "icloud")
+                }
+                .tag(3)
         }
-        #endif
+    }
+}
+
+// MARK: - Critique Dashboard (Placeholder for Phase 3)
+
+struct CritiqueDashboardView: View {
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 20) {
+                Image(systemName: "star.circle.fill")
+                    .font(.system(size: 80))
+                    .foregroundColor(.blue)
+
+                Text("AI Photo Coaching")
+                    .font(.title)
+                    .fontWeight(.bold)
+
+                Text("Select a photo from your library to get AI-powered critique and improvement suggestions")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+
+                Spacer()
+            }
+            .padding(.top, 60)
+            .navigationTitle("AI Coaching")
+        }
     }
 }

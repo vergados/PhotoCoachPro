@@ -23,8 +23,20 @@ class AppState: ObservableObject {
     let thumbnailCache: ThumbnailCache
     let editGraphEngine: EditGraphEngine
     let exifReader: EXIFReader
+
+    // Phase 1 managers
     let presetManager: EditPresetManager
     let exportManager: ExportManager
+
+    // Phase 4: Preset system
+    let customPresetManager: PresetManager
+    let presetApplicator: PresetApplicator
+
+    // Phase 5: Cloud sync (optional - initialize later)
+    var syncManager: SyncManager?
+
+    // Phase 6: Export engine
+    let exportEngine: ExportEngine
 
     // Current editing session
     @Published var currentPhoto: PhotoRecord?
@@ -55,12 +67,24 @@ class AppState: ObservableObject {
         self.thumbnailCache = ThumbnailCache()
         self.editGraphEngine = EditGraphEngine()
         self.exifReader = EXIFReader()
+
+        // Phase 1 managers
         self.presetManager = EditPresetManager()
         self.exportManager = ExportManager(
             renderer: imageRenderer,
             colorSpaceManager: colorSpaceManager,
             privacySettings: privacySettings
         )
+
+        // Phase 4: Preset system
+        self.customPresetManager = PresetManager(database: database)
+        self.presetApplicator = PresetApplicator()
+
+        // Phase 5: Cloud sync (optional - can be initialized later)
+        self.syncManager = nil
+
+        // Phase 6: Export engine
+        self.exportEngine = ExportEngine()
     }
 
     // MARK: - Photo Management

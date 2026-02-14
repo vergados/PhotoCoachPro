@@ -6,7 +6,9 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// Share exported photos using iOS share sheet
 struct ShareView: View {
