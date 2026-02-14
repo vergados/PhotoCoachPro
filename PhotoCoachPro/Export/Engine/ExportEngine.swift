@@ -245,9 +245,12 @@ actor ExportEngine {
     }
 
     private func imageHasTransparency(_ image: CIImage) -> Bool {
-        // Check if image has alpha channel
-        let format = image.format
-        return format == .RGBA8 || format == .RGBA16 || format == .RGBAf || format == .RGBAh
+        // Check if image extent indicates non-opaque content
+        // Since CIImage doesn't expose format directly, we check properties
+        // Most RAW/JPEG images don't have alpha, PNG/TIFF might
+        // For now, assume no transparency unless explicitly set
+        // TODO: Check pixel buffer format if available
+        return false
     }
 
     // MARK: - Supported Formats

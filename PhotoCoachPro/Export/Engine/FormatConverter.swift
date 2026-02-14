@@ -42,7 +42,7 @@ actor FormatConverter {
         let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
 
         let options: [CIImageRepresentationOption: Any] = [
-            .jpegCompressionQuality: quality.compressionQuality as NSNumber
+            kCGImageDestinationLossyCompressionQuality as CIImageRepresentationOption: quality.compressionQuality as NSNumber
         ]
 
         guard let data = context.jpegRepresentation(
@@ -108,7 +108,7 @@ actor FormatConverter {
 
         if #available(iOS 11.0, macOS 10.13, *) {
             let options: [CIImageRepresentationOption: Any] = [
-                .heifCompressionQuality: quality.compressionQuality as NSNumber
+                kCGImageDestinationLossyCompressionQuality as CIImageRepresentationOption: quality.compressionQuality as NSNumber
             ]
 
             guard let data = context.heifRepresentation(

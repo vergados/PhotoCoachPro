@@ -396,6 +396,8 @@ enum ExportError: LocalizedError {
     case fileWriteFailed
     case invalidResolution
     case insufficientDiskSpace
+    case renderFailed
+    case unsupportedFormat
 
     var errorDescription: String? {
         switch self {
@@ -415,6 +417,10 @@ enum ExportError: LocalizedError {
             return "Invalid resolution settings"
         case .insufficientDiskSpace:
             return "Insufficient disk space for export"
+        case .renderFailed:
+            return "Failed to render image"
+        case .unsupportedFormat:
+            return "Unsupported export format"
         }
     }
 

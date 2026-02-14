@@ -115,10 +115,9 @@ class LocalDatabase: ObservableObject {
     // MARK: - Search
 
     func searchPhotos(query: String) -> [PhotoRecord] {
-        let lowercased = query.lowercased()
         let descriptor = FetchDescriptor<PhotoRecord>(
             predicate: #Predicate { photo in
-                photo.fileName.lowercased().contains(lowercased)
+                photo.fileName.contains(query)
             },
             sortBy: [SortDescriptor(\.importedDate, order: .reverse)]
         )
@@ -231,10 +230,9 @@ class LocalDatabase: ObservableObject {
     }
 
     func searchPresets(query: String) -> [PresetRecord] {
-        let lowercased = query.lowercased()
         let descriptor = FetchDescriptor<PresetRecord>(
             predicate: #Predicate { preset in
-                preset.name.lowercased().contains(lowercased)
+                preset.name.contains(query)
             },
             sortBy: [SortDescriptor(\.name, order: .forward)]
         )

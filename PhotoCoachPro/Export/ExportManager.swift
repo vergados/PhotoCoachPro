@@ -219,20 +219,4 @@ actor ExportManager {
 }
 
 // MARK: - Errors
-
-enum ExportError: Error, LocalizedError {
-    case renderFailed
-    case unsupportedFormat
-    case writeFailed
-
-    var errorDescription: String? {
-        switch self {
-        case .renderFailed:
-            return "Failed to render image"
-        case .unsupportedFormat:
-            return "Unsupported export format"
-        case .writeFailed:
-            return "Failed to write file"
-        }
-    }
-}
+// Note: ExportError is defined in Export/Models/ExportSettings.swift

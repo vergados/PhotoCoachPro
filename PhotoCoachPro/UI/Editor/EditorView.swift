@@ -54,7 +54,9 @@ struct EditorView: View {
                 }
             }
             .navigationTitle(appState.currentPhoto?.fileName ?? "Editor")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     toolbarButtons
@@ -154,7 +156,11 @@ struct EditorView: View {
             }
             .padding()
         }
+        #if os(iOS)
         .background(Color(.systemBackground))
+        #else
+        .background(Color(NSColor.windowBackgroundColor))
+        #endif
     }
 
     private var toolbarButtons: some View {
