@@ -61,7 +61,7 @@ struct ToneCurveView: View {
                         )
                     }
                 }
-                .background(Color(.systemBackground))
+                .background(backgroundColor)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
@@ -182,7 +182,7 @@ struct ToneCurveView: View {
     private func updatePoint(_ id: UUID, to location: CGPoint, in size: CGSize) {
         guard let index = curvePoints.firstIndex(where: { $0.id == id }) else { return }
 
-        var newPoint = fromCanvasPoint(location, in: size)
+        var newPoint = fromCanvasPoint(location, size: size)
         newPoint.id = id
 
         // Clamp to bounds
@@ -236,5 +236,16 @@ struct ToneCurvePoint: Identifiable, Codable, Equatable {
             ToneCurvePoint(x: 0.75, y: 0.85),
             ToneCurvePoint(x: 1.0, y: 1.0)
         ]
+    }
+}
+
+// MARK: - ToneCurveView Extension
+extension ToneCurveView {
+    private var backgroundColor: Color {
+        #if os(iOS)
+        return Color(.systemBackground)
+        #else
+        return Color(NSColor.windowBackgroundColor)
+        #endif
     }
 }

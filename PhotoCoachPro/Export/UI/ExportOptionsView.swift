@@ -43,15 +43,17 @@ struct ExportOptionsView: View {
                 estimatedSizeSection
             }
             .navigationTitle("Export Settings")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()
                     }
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Export") {
                         onExport(settings)
                         dismiss()
@@ -105,7 +107,11 @@ struct ExportOptionsView: View {
                     .tag(format)
                 }
             }
+            #if os(iOS)
             .pickerStyle(.navigationLink)
+            #else
+            .pickerStyle(.menu)
+            #endif
         } header: {
             Text("Format")
         } footer: {
@@ -129,7 +135,11 @@ struct ExportOptionsView: View {
                     .tag(quality)
                 }
             }
+            #if os(iOS)
             .pickerStyle(.navigationLink)
+            #else
+            .pickerStyle(.menu)
+            #endif
         } header: {
             Text("Quality")
         } footer: {
@@ -153,7 +163,11 @@ struct ExportOptionsView: View {
                     .tag(resolution)
                 }
             }
+            #if os(iOS)
             .pickerStyle(.navigationLink)
+            #else
+            .pickerStyle(.menu)
+            #endif
         } header: {
             Text("Resolution")
         } footer: {
@@ -177,7 +191,11 @@ struct ExportOptionsView: View {
                     .tag(colorSpace)
                 }
             }
+            #if os(iOS)
             .pickerStyle(.navigationLink)
+            #else
+            .pickerStyle(.menu)
+            #endif
         } header: {
             Text("Color Space")
         } footer: {
@@ -201,7 +219,11 @@ struct ExportOptionsView: View {
                     .tag(metadata)
                 }
             }
+            #if os(iOS)
             .pickerStyle(.navigationLink)
+            #else
+            .pickerStyle(.menu)
+            #endif
         } header: {
             Text("Metadata")
         } footer: {
