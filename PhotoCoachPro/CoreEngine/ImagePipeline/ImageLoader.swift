@@ -12,21 +12,47 @@ import UniformTypeIdentifiers
 /// Loads images from various sources into CIImage
 actor ImageLoader {
     private let colorSpaceManager: ColorSpaceManager
+    private let loadTimeout: TimeInterval
 
-    init(colorSpaceManager: ColorSpaceManager) {
+    init(colorSpaceManager: ColorSpaceManager, loadTimeout: TimeInterval = 30.0) {
         self.colorSpaceManager = colorSpaceManager
+        self.loadTimeout = loadTimeout
     }
 
     // MARK: - Load from URL
 
     func load(from url: URL) async throws -> LoadedImage {
-        let fileType = try detectFileType(url: url)
+        try await withTimeout(loadTimeout) {
+            let fileType = try self.detectFileType(url: url)
 
-        switch fileType {
-        case .raw:
-            return try await loadRAW(from: url)
-        case .standard:
-            return try await loadStandard(from: url)
+            switch fileType {
+            case .raw:
+                return try await self.loadRAW(from: url)
+            case .standard:
+                return try await self.loadStandard(from: url)
+            }
+        }
+    }
+
+    // MARK: - Timeout Wrapper
+
+    private func withTimeout<T>(_ timeout: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                throw ImageLoadError.timeout
+            }
+
+            guard let result = try await group.next() else {
+                throw ImageLoadError.timeout
+            }
+
+            group.cancelAll()
+            return result
         }
     }
 
@@ -188,6 +214,7 @@ enum ImageLoadError: Error, LocalizedError {
     case unsupportedFormat
     case rawDecodingFailed
     case fileNotFound
+    case timeout
 
     var errorDescription: String? {
         switch self {
@@ -199,6 +226,8 @@ enum ImageLoadError: Error, LocalizedError {
             return "Failed to decode RAW image"
         case .fileNotFound:
             return "Image file not found"
+        case .timeout:
+            return "Image loading timed out (file may be corrupted)"
         }
     }
 }
