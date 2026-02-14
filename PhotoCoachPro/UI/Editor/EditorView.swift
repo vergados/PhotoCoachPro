@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreImage
 
 struct EditorView: View {
     @EnvironmentObject var appState: AppState
@@ -71,18 +72,77 @@ struct EditorView: View {
         ZStack {
             Color.black
 
-            if let image = appState.renderedImage {
-                #if os(iOS)
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                #elseif os(macOS)
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                #endif
+            if showBeforeAfter {
+                // Before/After comparison
+                GeometryReader { geometry in
+                    HStack(spacing: 0) {
+                        // Before (original)
+                        if let original = appState.currentImage,
+                           let renderer = CIContext().createCGImage(original, from: original.extent) {
+                            Image(decorative: renderer, scale: 1.0)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: geometry.size.width / 2)
+                                .overlay(alignment: .topLeading) {
+                                    Text("Before")
+                                        .font(.caption)
+                                        .padding(8)
+                                        .background(.black.opacity(0.6))
+                                        .foregroundColor(.white)
+                                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                                        .padding(8)
+                                }
+                        }
+
+                        // After (edited)
+                        if let edited = appState.renderedImage {
+                            #if os(iOS)
+                            Image(uiImage: edited)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: geometry.size.width / 2)
+                                .overlay(alignment: .topLeading) {
+                                    Text("After")
+                                        .font(.caption)
+                                        .padding(8)
+                                        .background(.black.opacity(0.6))
+                                        .foregroundColor(.white)
+                                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                                        .padding(8)
+                                }
+                            #elseif os(macOS)
+                            Image(nsImage: edited)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: geometry.size.width / 2)
+                                .overlay(alignment: .topLeading) {
+                                    Text("After")
+                                        .font(.caption)
+                                        .padding(8)
+                                        .background(.black.opacity(0.6))
+                                        .foregroundColor(.white)
+                                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                                        .padding(8)
+                                }
+                            #endif
+                        }
+                    }
+                }
             } else {
-                ProgressView()
+                // Normal view (edited only)
+                if let image = appState.renderedImage {
+                    #if os(iOS)
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                    #elseif os(macOS)
+                    Image(nsImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                    #endif
+                } else {
+                    ProgressView()
+                }
             }
 
             // Histogram overlay
