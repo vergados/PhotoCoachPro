@@ -135,8 +135,8 @@ class AppState: ObservableObject {
 
             try database.savePhoto(photo)
 
-            // Open in editor
-            await openPhoto(photo)
+            // Open in editor (reuse already-loaded image)
+            await openPhoto(photo, loadedImage: loaded)
 
         } catch {
             errorMessage = "Failed to import photo: \(error.localizedDescription)"
@@ -152,7 +152,18 @@ class AppState: ObservableObject {
         do {
             // Load image
             let loaded = try await imageLoader.load(from: photo.fileURL)
-            currentImage = loaded.image
+            await openPhoto(photo, loadedImage: loaded)
+
+        } catch {
+            errorMessage = "Failed to open photo: \(error.localizedDescription)"
+        }
+
+        isLoading = false
+    }
+
+    private func openPhoto(_ photo: PhotoRecord, loadedImage: LoadedImage) async {
+        do {
+            currentImage = loadedImage.image
 
             // Get or create edit history
             let editRecord = try database.getOrCreateEditRecord(for: photo)
@@ -169,8 +180,6 @@ class AppState: ObservableObject {
         } catch {
             errorMessage = "Failed to open photo: \(error.localizedDescription)"
         }
-
-        isLoading = false
     }
 
     // MARK: - Editing
