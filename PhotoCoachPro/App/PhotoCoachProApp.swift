@@ -34,65 +34,167 @@ struct PhotoCoachProApp: App {
 // MARK: - Content View (Main Navigation)
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
-    @State private var selectedTab = 0
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            // Phase 1: Photo Library & Editor
+        TabView(selection: $appState.selectedTab) {
+            // Library
             HomeView()
                 .tabItem {
                     Label("Library", systemImage: "photo.stack")
                 }
-                .tag(0)
+                .tag(AppState.AppTab.home)
 
-            // Phase 4: Presets & Templates
+            // Editor (opens when photo selected)
+            EditorView()
+                .tabItem {
+                    Label("Editor", systemImage: "slider.horizontal.3")
+                }
+                .tag(AppState.AppTab.editor)
+
+            // Presets & Templates
             PresetLibraryView()
                 .tabItem {
                     Label("Presets", systemImage: "photo.stack.fill")
                 }
-                .tag(1)
+                .tag(AppState.AppTab.presets)
 
-            // Phase 3: AI Coaching
+            // AI Coaching
             CritiqueDashboardView()
                 .tabItem {
                     Label("Coaching", systemImage: "star.fill")
                 }
-                .tag(2)
-
-            // Phase 5: Cloud Sync (disabled for now)
-            // SyncStatusView()
-            //     .tabItem {
-            //         Label("Sync", systemImage: "icloud")
-            //     }
-            //     .tag(3)
+                .tag(AppState.AppTab.coaching)
         }
     }
 }
 
-// MARK: - Critique Dashboard (Placeholder for Phase 3)
+// MARK: - Critique Dashboard
 
 struct CritiqueDashboardView: View {
+    @EnvironmentObject var appState: AppState
+    @Query(sort: \PhotoRecord.importedDate, order: .reverse) var photos: [PhotoRecord]
+
+    @State private var selectedPhoto: PhotoRecord?
+    @State private var critiqueResult: CritiqueResult?
+    @State private var isAnalyzing = false
+    @State private var analyzer = ImageAnalyzer()
+
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                Image(systemName: "star.circle.fill")
-                    .font(.system(size: 80))
-                    .foregroundColor(.blue)
-
-                Text("AI Photo Coaching")
-                    .font(.title)
-                    .fontWeight(.bold)
-
-                Text("Select a photo from your library to get AI-powered critique and improvement suggestions")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-
-                Spacer()
+            if let result = critiqueResult, let photo = selectedPhoto {
+                CritiqueResultView(critique: result)
+                    .toolbar {
+                        ToolbarItem(placement: .primaryAction) {
+                            Button("Analyze Another") {
+                                critiqueResult = nil
+                                selectedPhoto = nil
+                            }
+                        }
+                    }
+            } else if photos.isEmpty {
+                emptyState
+            } else {
+                photoSelectionView
             }
-            .padding(.top, 60)
-            .navigationTitle("AI Coaching")
+        }
+        .overlay {
+            if isAnalyzing {
+                LoadingOverlay()
+            }
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "star.circle.fill")
+                .font(.system(size: 80))
+                .foregroundColor(.blue)
+
+            Text("AI Photo Coaching")
+                .font(.title)
+                .fontWeight(.bold)
+
+            Text("Import photos first to get AI-powered critique and improvement suggestions")
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+
+            Spacer()
+        }
+        .padding(.top, 60)
+        .navigationTitle("AI Coaching")
+    }
+
+    private var photoSelectionView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Select a photo to analyze (\(photos.count) photos)")
+                    .font(.headline)
+                    .padding(.horizontal)
+
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 200, maximum: 300), spacing: 16)], spacing: 16) {
+                    ForEach(photos) { photo in
+                        Button(action: {
+                            print("🔴 BUTTON CLICKED: \(photo.fileName)")
+                            analyzePhoto(photo)
+                        }) {
+                            VStack {
+                                Image(systemName: "photo")
+                                    .font(.system(size: 60))
+                                Text(photo.fileName)
+                                    .font(.caption)
+                            }
+                            .frame(width: 200, height: 200)
+                            .background(Color.blue.opacity(0.2))
+                            .cornerRadius(12)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal)
+            }
+            .padding(.vertical)
+        }
+        .navigationTitle("AI Coaching")
+    }
+
+    private func analyzePhoto(_ photo: PhotoRecord) {
+        print("🎯 Starting analysis for: \(photo.fileName)")
+        selectedPhoto = photo
+        isAnalyzing = true
+
+        Task {
+            do {
+                print("🎯 Loading image...")
+                // Load the image
+                let loaded = try await appState.imageLoader.load(from: photo.fileURL)
+                print("🎯 Image loaded, running AI analysis...")
+
+                // Run AI analysis
+                let result = try await analyzer.analyze(loaded.image, photoID: photo.id)
+                print("🎯 Analysis complete! Score: \(result.overallScore)")
+
+                // Save to database
+                print("🎯 Saving to database...")
+                let record = try CritiqueRecord.from(result)
+                try appState.database.saveCritique(record)
+                print("🎯 Saved successfully")
+
+                // Show results
+                await MainActor.run {
+                    print("🎯 Showing results UI")
+                    critiqueResult = result
+                    isAnalyzing = false
+                }
+            } catch {
+                print("❌ Analysis error: \(error)")
+                await MainActor.run {
+                    appState.errorMessage = "Analysis failed: \(error.localizedDescription)"
+                    isAnalyzing = false
+                    selectedPhoto = nil
+                }
+            }
         }
     }
 }

@@ -52,6 +52,8 @@ class AppState: ObservableObject {
     enum AppTab {
         case home
         case editor
+        case presets
+        case coaching
         case export
     }
 
@@ -64,7 +66,8 @@ class AppState: ObservableObject {
         self.colorSpaceManager = ColorSpaceManager()
         self.imageLoader = ImageLoader(colorSpaceManager: colorSpaceManager)
         self.imageRenderer = ImageRenderer(colorSpaceManager: colorSpaceManager)
-        self.thumbnailCache = ThumbnailCache()
+        // Use larger thumbnails for Retina displays (800x800 for crisp 2x/3x rendering)
+        self.thumbnailCache = ThumbnailCache(thumbnailSize: CGSize(width: 800, height: 800))
         self.editGraphEngine = EditGraphEngine()
         self.exifReader = EXIFReader()
 
@@ -89,36 +92,63 @@ class AppState: ObservableObject {
 
     // MARK: - Photo Management
 
+    // DIAGNOSTIC TEST - Simple version
+    func testImport(from url: URL) async {
+        errorMessage = nil
+
+        do {
+            // Step 1: Copy file
+            let dest = FileManager.default.temporaryDirectory.appendingPathComponent("test.jpg")
+            try? FileManager.default.removeItem(at: dest)
+            try FileManager.default.copyItem(at: url, to: dest)
+
+            // Step 2: Try ImageLoader actor
+            let loaded = try await imageLoader.load(from: dest)
+            errorMessage = "✅ ImageLoader works! Size: \(Int(loaded.image.extent.width))x\(Int(loaded.image.extent.height))"
+
+        } catch {
+            errorMessage = "❌ ImageLoader failed: \(error.localizedDescription)"
+        }
+    }
+
     func importPhoto(from url: URL) async {
+        print("📸 Starting import from: \(url)")
         isLoading = true
         errorMessage = nil
 
         do {
-            // Load image
-            let loaded = try await imageLoader.load(from: url)
-
-            // Create file copy in app documents
+            // FIRST: Copy file to a permanent location BEFORE processing
             let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             let fileName = url.lastPathComponent
             let destURL = documentsURL.appendingPathComponent("Photos").appendingPathComponent(fileName)
+            print("📸 Destination: \(destURL.path)")
 
             // Ensure directory exists
+            print("📸 Creating directory...")
             try FileManager.default.createDirectory(
                 at: documentsURL.appendingPathComponent("Photos"),
                 withIntermediateDirectories: true
             )
 
-            // Copy file
+            // Copy file FIRST (while security-scoped access is still valid)
+            print("📸 Copying file from temporary location...")
             if FileManager.default.fileExists(atPath: destURL.path) {
                 try FileManager.default.removeItem(at: destURL)
             }
             try FileManager.default.copyItem(at: url, to: destURL)
+            print("📸 File copied successfully to permanent location")
+
+            // NOW load image from our permanent copy
+            print("📸 Loading image from permanent location...")
+            let loaded = try await imageLoader.load(from: destURL)
+            print("📸 Image loaded: \(loaded.image.extent.width)x\(loaded.image.extent.height)")
 
             // Get file size
             let attributes = try FileManager.default.attributesOfItem(atPath: destURL.path)
             let fileSize = attributes[.size] as? Int64 ?? 0
 
             // Create photo record
+            print("📸 Creating photo record...")
             let photo = PhotoRecord(
                 filePath: destURL.path,
                 fileName: fileName,
@@ -130,12 +160,16 @@ class AppState: ObservableObject {
                 exifSnapshot: loaded.metadata
             )
 
+            print("📸 Saving to database...")
             try database.savePhoto(photo)
+            print("📸 Photo saved successfully")
 
             // Open in editor
+            print("📸 Opening photo in editor...")
             await openPhoto(photo)
 
         } catch {
+            print("❌ Import error: \(error)")
             errorMessage = "Failed to import photo: \(error.localizedDescription)"
         }
 
@@ -143,44 +177,70 @@ class AppState: ObservableObject {
     }
 
     func openPhoto(_ photo: PhotoRecord) async {
+        print("🟢 Opening photo: \(photo.fileName)")
         isLoading = true
         errorMessage = nil
 
         do {
             // Load image
+            print("🟢 Loading image from: \(photo.fileURL.path)")
             let loaded = try await imageLoader.load(from: photo.fileURL)
             currentImage = loaded.image
+            print("🟢 Current image set: \(loaded.image.extent)")
 
             // Get or create edit history
+            print("🟢 Getting edit record...")
             let editRecord = try database.getOrCreateEditRecord(for: photo)
             let historyManager = EditHistoryManager(editRecord: editRecord, database: database)
+            print("🟢 Edit history created")
 
             currentPhoto = photo
             currentEditHistory = historyManager
+            print("🟢 State updated: currentPhoto and currentEditHistory set")
 
             // Render current state
+            print("🟢 Rendering image...")
             await renderCurrentImage()
+            print("🟢 Render complete, renderedImage = \(renderedImage != nil ? "SET" : "NIL")")
 
+            print("🟢 Switching to editor tab...")
             selectedTab = .editor
+            print("🟢 Selected tab is now: \(selectedTab)")
 
         } catch {
+            print("❌ openPhoto error: \(error)")
             errorMessage = "Failed to open photo: \(error.localizedDescription)"
         }
 
+        print("🟢 Setting isLoading = false")
         isLoading = false
     }
 
     // MARK: - Editing
 
     func renderCurrentImage() async {
-        guard let source = currentImage,
-              let history = currentEditHistory else { return }
+        print("🎨 renderCurrentImage called")
+        print("🎨 currentImage = \(currentImage != nil ? "SET" : "NIL")")
+        print("🎨 currentEditHistory = \(currentEditHistory != nil ? "SET" : "NIL")")
 
+        guard let source = currentImage,
+              let history = currentEditHistory else {
+            print("❌ Cannot render: missing currentImage or currentEditHistory")
+            return
+        }
+
+        print("🎨 Getting active instructions...")
         let instructions = history.editStack.activeInstructions
+        print("🎨 Active instructions count: \(instructions.count)")
+
+        print("🎨 Rendering with edit graph engine...")
         let rendered = await editGraphEngine.render(source: source, instructions: instructions)
+        print("🎨 Edit graph render complete: \(rendered.extent)")
 
         // Render to platform image for display
+        print("🎨 Converting to platform image...")
         renderedImage = await imageRenderer.renderPlatformImage(from: rendered)
+        print("🎨 Platform image rendered: \(renderedImage != nil ? "SUCCESS" : "FAILED")")
     }
 
     func addEdit(_ instruction: EditInstruction) async {
