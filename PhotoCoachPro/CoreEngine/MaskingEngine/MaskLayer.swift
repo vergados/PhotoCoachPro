@@ -8,6 +8,9 @@
 import Foundation
 import CoreImage
 import CoreGraphics
+#if canImport(AppKit)
+import AppKit
+#endif
 
 /// Mask layer for selective adjustments
 struct MaskLayer: Codable, Identifiable, Equatable {

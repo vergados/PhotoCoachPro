@@ -361,12 +361,11 @@ enum PaperType: String, CaseIterable {
         photoRecord: PhotoRecord(
             filePath: "/path/to/photo.jpg",
             fileName: "landscape.jpg",
-            fileSize: 8000000,
+            createdDate: Date(),
             width: 6000,
             height: 4000,
-            format: "JPEG",
-            colorSpace: "Adobe RGB",
-            captureDate: Date()
+            fileFormat: "JPEG",
+            fileSizeBytes: 8000000
         )
     )
 }

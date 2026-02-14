@@ -19,7 +19,7 @@ struct PresetLibrary {
             EditInstruction(type: .exposure, value: 0.2),
             EditInstruction(type: .shadows, value: 0.3),
             EditInstruction(type: .vibrance, value: 0.1),
-            EditInstruction(type: .sharpness, value: 0.2)
+            EditInstruction(type: .sharpAmount, value: 0.2)
         ],
         author: "Photo Coach Pro",
         description: "Soft, natural look perfect for portraits. Slightly brightens shadows and enhances skin tones.",
@@ -69,7 +69,7 @@ struct PresetLibrary {
             EditInstruction(type: .saturation, value: 0.2),
             EditInstruction(type: .contrast, value: 0.3),
             EditInstruction(type: .clarity, value: 0.4),
-            EditInstruction(type: .sharpness, value: 0.3)
+            EditInstruction(type: .sharpAmount, value: 0.3)
         ],
         author: "Photo Coach Pro",
         description: "Punchy, saturated colors perfect for dramatic landscapes.",
@@ -252,7 +252,7 @@ struct PresetLibrary {
             EditInstruction(type: .clarity, value: 0.5),
             EditInstruction(type: .highlights, value: -0.3),
             EditInstruction(type: .shadows, value: -0.2),
-            EditInstruction(type: .sharpness, value: 0.4)
+            EditInstruction(type: .sharpAmount, value: 0.4)
         ],
         author: "Photo Coach Pro",
         description: "High contrast, gritty look perfect for urban street photography.",
@@ -308,7 +308,7 @@ struct PresetLibrary {
             EditInstruction(type: .saturation, value: 0.3),
             EditInstruction(type: .contrast, value: 0.3),
             EditInstruction(type: .clarity, value: 0.3),
-            EditInstruction(type: .sharpness, value: 0.3)
+            EditInstruction(type: .sharpAmount, value: 0.3)
         ],
         author: "Photo Coach Pro",
         description: "Bold, punchy colors that really pop off the screen.",

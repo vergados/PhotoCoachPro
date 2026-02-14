@@ -74,6 +74,10 @@ extension CloudPhoto: CloudRecordConvertible {
         CKRecord.ID(recordName: recordName)
     }
 
+    var recordType: String {
+        Self.recordType
+    }
+
     func toCKRecord() throws -> CKRecord {
         let record = CKRecord(recordType: Self.recordType, recordID: recordID)
 
@@ -193,6 +197,10 @@ extension CloudEditRecord: CloudRecordConvertible {
         CKRecord.ID(recordName: recordName)
     }
 
+    var recordType: String {
+        Self.recordType
+    }
+
     func toCKRecord() throws -> CKRecord {
         let record = CKRecord(recordType: Self.recordType, recordID: recordID)
 
@@ -293,6 +301,10 @@ struct CloudPreset: Codable, Identifiable {
 extension CloudPreset: CloudRecordConvertible {
     var recordID: CKRecord.ID {
         CKRecord.ID(recordName: recordName)
+    }
+
+    var recordType: String {
+        Self.recordType
     }
 
     func toCKRecord() throws -> CKRecord {

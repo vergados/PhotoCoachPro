@@ -17,8 +17,28 @@ actor CloudKitService {
     init(containerIdentifier: String = "iCloud.com.photocoachpro") {
         self.container = CKContainer(identifier: containerIdentifier)
         self.privateDatabase = container.privateCloudDatabase
+        #if os(iOS)
         self.deviceID = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
+        #else
+        // macOS: use a persistent device identifier
+        self.deviceID = Self.getOrCreateMacDeviceID()
+        #endif
     }
+
+    #if os(macOS)
+    private static func getOrCreateMacDeviceID() -> String {
+        let defaults = UserDefaults.standard
+        let key = "com.photocoachpro.deviceID"
+
+        if let existing = defaults.string(forKey: key) {
+            return existing
+        }
+
+        let newID = UUID().uuidString
+        defaults.set(newID, forKey: key)
+        return newID
+    }
+    #endif
 
     // MARK: - Account Status
 

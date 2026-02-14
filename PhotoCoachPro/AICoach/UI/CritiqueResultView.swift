@@ -319,8 +319,12 @@ private struct StatCard: View {
         CritiqueResultView(critique: CritiqueResult(
             photoID: UUID(),
             overallScore: 0.75,
-            overallRating: .good,
             overallSummary: "Good photo with strong composition and lighting. Some improvements possible in color and focus.",
+            topImprovements: [
+                "Adjust white balance to remove color cast",
+                "Increase sharpness slightly",
+                "Consider cropping for better composition"
+            ],
             categories: CritiqueResult.CategoryBreakdown(
                 composition: CritiqueResult.CategoryScore(score: 0.85, notes: "Good balance", detectedIssues: [], strengths: ["Good framing"]),
                 light: CritiqueResult.CategoryScore(score: 0.80, notes: "Well exposed", detectedIssues: [], strengths: ["Good dynamic range"]),
@@ -329,11 +333,6 @@ private struct StatCard: View {
                 background: CritiqueResult.CategoryScore(score: 0.75, notes: "Good separation", detectedIssues: [], strengths: []),
                 story: CritiqueResult.CategoryScore(score: 0.80, notes: "Clear subject", detectedIssues: [], strengths: ["Strong narrative"])
             ),
-            topImprovements: [
-                "Adjust white balance to remove color cast",
-                "Increase sharpness slightly",
-                "Consider cropping for better composition"
-            ],
             editGuidance: [],
             practiceRecommendation: "Practice using custom white balance for accurate colors."
         ))

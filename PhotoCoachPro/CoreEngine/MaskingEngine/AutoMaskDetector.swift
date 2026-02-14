@@ -64,11 +64,11 @@ actor AutoMaskDetector {
         let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
         try handler.perform([request])
 
-        guard let result = request.results?.first,
-              let maskBuffer = result.pixelBuffer else {
+        guard let result = request.results?.first else {
             throw MaskDetectionError.detectionFailed
         }
 
+        let maskBuffer = result.pixelBuffer
         return CIImage(cvPixelBuffer: maskBuffer)
     }
 
@@ -91,7 +91,7 @@ actor AutoMaskDetector {
             croppedToInstancesExtent: false
         )
 
-        return CIImage(cgImage: allInstancesMask)
+        return CIImage(cvPixelBuffer: allInstancesMask)
     }
 
     // MARK: - Sky Detection
@@ -144,11 +144,11 @@ actor AutoMaskDetector {
         let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
         try handler.perform([request])
 
-        guard let result = request.results?.first,
-              let maskBuffer = result.pixelBuffer else {
+        guard let result = request.results?.first else {
             throw MaskDetectionError.detectionFailed
         }
 
+        let maskBuffer = result.pixelBuffer
         let saliencyMask = CIImage(cvPixelBuffer: maskBuffer)
 
         return MaskLayer(

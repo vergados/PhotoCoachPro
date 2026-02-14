@@ -344,22 +344,20 @@ private struct SettingRow: View {
             PhotoRecord(
                 filePath: "/path/to/photo1.jpg",
                 fileName: "photo1.jpg",
-                fileSize: 5000000,
+                createdDate: Date(),
                 width: 4000,
                 height: 3000,
-                format: "JPEG",
-                colorSpace: "sRGB",
-                captureDate: Date()
+                fileFormat: "JPEG",
+                fileSizeBytes: 5000000
             ),
             PhotoRecord(
                 filePath: "/path/to/photo2.jpg",
                 fileName: "photo2.jpg",
-                fileSize: 5000000,
+                createdDate: Date(),
                 width: 4000,
                 height: 3000,
-                format: "JPEG",
-                colorSpace: "sRGB",
-                captureDate: Date()
+                fileFormat: "JPEG",
+                fileSizeBytes: 5000000
             )
         ],
         onComplete: { _ in }

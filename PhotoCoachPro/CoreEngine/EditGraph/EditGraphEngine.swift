@@ -254,8 +254,8 @@ actor EditGraphEngine {
         let intensity = amount / 100.0
 
         // Generate random noise
-        let noiseGenerator = CIFilter.randomGenerator()
-        guard let noise = noiseGenerator.outputImage else { return image }
+        guard let noiseGenerator = CIFilter(name: "CIRandomGenerator"),
+              let noise = noiseGenerator.outputImage else { return image }
 
         // Composite noise over image
         return image.applyingFilter("CISourceOverCompositing", parameters: [

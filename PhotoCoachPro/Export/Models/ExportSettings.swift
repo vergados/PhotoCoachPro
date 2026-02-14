@@ -383,3 +383,51 @@ struct BatchExportJob: Identifiable {
         jobs.allSatisfy { $0.status == .completed || $0.status == .failed }
     }
 }
+
+
+// MARK: - Export Error
+
+enum ExportError: LocalizedError {
+    case invalidColorSpace
+    case colorSpaceConversionFailed
+    case formatDoesNotSupportTransparency
+    case formatConversionFailed
+    case metadataHandlingFailed
+    case fileWriteFailed
+    case invalidResolution
+    case insufficientDiskSpace
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidColorSpace:
+            return "Invalid color space for export"
+        case .colorSpaceConversionFailed:
+            return "Failed to convert color space"
+        case .formatDoesNotSupportTransparency:
+            return "Selected format does not support transparency. Use PNG or TIFF for images with transparency."
+        case .formatConversionFailed:
+            return "Failed to convert image format"
+        case .metadataHandlingFailed:
+            return "Failed to process image metadata"
+        case .fileWriteFailed:
+            return "Failed to write export file"
+        case .invalidResolution:
+            return "Invalid resolution settings"
+        case .insufficientDiskSpace:
+            return "Insufficient disk space for export"
+        }
+    }
+
+    var recoverySuggestion: String? {
+        switch self {
+        case .formatDoesNotSupportTransparency:
+            return "Choose PNG or TIFF format to preserve transparency"
+        case .insufficientDiskSpace:
+            return "Free up disk space and try again"
+        case .invalidColorSpace:
+            return "Choose a different color space option"
+        default:
+            return nil
+        }
+    }
+}

@@ -54,7 +54,12 @@ struct ShareView: View {
             }
             .sheet(isPresented: $showShareSheet) {
                 if let url = exportedURL {
+                    #if os(iOS)
                     ActivityViewController(items: [url])
+                    #else
+                    // macOS: use NSSharingService
+                    Text("Share functionality requires macOS implementation")
+                    #endif
                 }
             }
             .alert("Export Error", isPresented: .constant(exportError != nil)) {
@@ -245,6 +250,7 @@ private struct SharePresetCard: View {
 
 // MARK: - Activity View Controller
 
+#if os(iOS)
 struct ActivityViewController: UIViewControllerRepresentable {
     let items: [Any]
     var activities: [UIActivity]? = nil
@@ -261,6 +267,7 @@ struct ActivityViewController: UIViewControllerRepresentable {
         // Nothing to update
     }
 }
+#endif
 
 // MARK: - Preview
 
@@ -269,12 +276,11 @@ struct ActivityViewController: UIViewControllerRepresentable {
         photoRecord: PhotoRecord(
             filePath: "/path/to/photo.jpg",
             fileName: "sunset.jpg",
-            fileSize: 5000000,
+            createdDate: Date(),
             width: 4000,
             height: 3000,
-            format: "JPEG",
-            colorSpace: "sRGB",
-            captureDate: Date()
+            fileFormat: "JPEG",
+            fileSizeBytes: 5000000
         )
     )
 }

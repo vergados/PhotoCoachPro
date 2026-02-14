@@ -203,9 +203,9 @@ actor MaskRefinementBrush {
 
         ctx.drawRadialGradient(
             gradient,
-            startCenter: end,
+            startCenter: to,
             startRadius: 0,
-            endCenter: end,
+            endCenter: to,
             endRadius: radius,
             options: []
         )

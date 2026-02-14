@@ -242,12 +242,13 @@ private struct ValidationRow: View {
 // MARK: - Preview
 
 #Preview {
-    SavePresetView(editRecord: EditRecord(
+    var graph = EditGraph()
+    graph.activeStack.add(EditInstruction(type: .exposure, value: 0.5))
+    graph.activeStack.add(EditInstruction(type: .contrast, value: 0.3))
+    graph.activeStack.add(EditInstruction(type: .saturation, value: 0.2))
+
+    return SavePresetView(editRecord: EditRecord(
         photoID: UUID(),
-        instructions: [
-            EditInstruction(type: .exposure, value: 0.5),
-            EditInstruction(type: .contrast, value: 0.3),
-            EditInstruction(type: .saturation, value: 0.2)
-        ]
+        editGraph: graph
     ))
 }

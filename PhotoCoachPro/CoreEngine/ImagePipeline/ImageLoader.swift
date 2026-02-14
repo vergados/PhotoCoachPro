@@ -61,9 +61,7 @@ actor ImageLoader {
 
     private func loadRAW(from url: URL) async throws -> LoadedImage {
         // Use CIRAWFilter for RAW decoding
-        guard let rawFilter = CIFilter(imageURL: url, options: [
-            .applyOrientationProperty: true
-        ]) else {
+        guard let rawFilter = CIFilter(imageURL: url, options: [:]) else {
             throw ImageLoadError.rawDecodingFailed
         }
 

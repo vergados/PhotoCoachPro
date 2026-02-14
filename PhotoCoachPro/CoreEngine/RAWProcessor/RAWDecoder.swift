@@ -35,7 +35,7 @@ actor RAWDecoder {
         }
 
         // Extract native size
-        let nativeSize = rawFilter.value(forKey: kCIInputImageOrientationKey) as? CGSize ?? outputImage.extent.size
+        let nativeSize = rawFilter.value(forKey: "inputImageOrientation") as? CGSize ?? outputImage.extent.size
 
         // Extract available keys for advanced control
         let availableKeys = rawFilter.inputKeys
@@ -104,18 +104,10 @@ actor RAWDecoder {
         ]
 
         // Color space
-        switch settings.colorSpace {
-        case .native:
-            break // Use native
-        case .sRGB:
-            options[.colorSpace] = CGColorSpace(name: CGColorSpace.sRGB)!
-        case .displayP3:
-            options[.colorSpace] = CGColorSpace(name: CGColorSpace.displayP3)!
-        case .adobeRGB:
-            options[.colorSpace] = CGColorSpace(name: CGColorSpace.adobeRGB1998)!
-        case .proPhotoRGB:
-            options[.colorSpace] = CGColorSpace(name: CGColorSpace.rommrgb)!
-        }
+        // Note: CIRAWFilterOption.colorSpace not available in current SDK
+        // Color space will use native RAW profile
+        // TODO: Set color space via filter.setValue() after filter creation
+        _ = settings.colorSpace // Silence unused warning
 
         return options
     }

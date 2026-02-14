@@ -279,36 +279,31 @@ private struct EmptyStateView: View {
                 category: "Exposure",
                 suggestion: "Increase exposure by +0.5 EV to brighten shadows and reveal more detail.",
                 priority: .high,
-                instruction: EditInstruction(type: .exposure, value: 0.5),
-                expectedImprovement: 0.15
+                instruction: EditInstruction(type: .exposure, value: 0.5)
             ),
             CritiqueResult.EditSuggestion(
                 category: "Color",
                 suggestion: "Adjust white balance to remove cool color cast. Consider warming the image.",
                 priority: .high,
-                instruction: EditInstruction(type: .temperature, value: 500),
-                expectedImprovement: 0.12
+                instruction: EditInstruction(type: .temperature, value: 500)
             ),
             CritiqueResult.EditSuggestion(
                 category: "Sharpness",
                 suggestion: "Apply moderate sharpening to enhance edge detail and improve overall clarity.",
                 priority: .medium,
-                instruction: EditInstruction(type: .sharpness, value: 0.3),
-                expectedImprovement: 0.08
+                instruction: EditInstruction(type: .sharpAmount, value: 0.3)
             ),
             CritiqueResult.EditSuggestion(
                 category: "Color",
                 suggestion: "Reduce saturation slightly to achieve a more natural look.",
                 priority: .medium,
-                instruction: EditInstruction(type: .saturation, value: -0.1),
-                expectedImprovement: 0.05
+                instruction: EditInstruction(type: .saturation, value: -0.1)
             ),
             CritiqueResult.EditSuggestion(
                 category: "Composition",
                 suggestion: "Consider cropping to improve composition and remove distracting elements on the edges.",
                 priority: .low,
-                instruction: nil,
-                expectedImprovement: 0.03
+                instruction: nil
             )
         ])
         .padding()

@@ -125,13 +125,13 @@ enum ColorSpaceError: Error, LocalizedError {
 private extension CIImage {
     func matchedToWorkingSpace(from sourceSpace: CGColorSpace) -> CIImage {
         applyingFilter("CIColorSpace", parameters: [
-            kCIInputColorSpaceKey: sourceSpace
+            "inputColorSpace": sourceSpace
         ])
     }
 
     func matchedFromWorkingSpace(to targetSpace: CGColorSpace) -> CIImage {
         applyingFilter("CIColorSpace", parameters: [
-            kCIInputColorSpaceKey: targetSpace
+            "inputColorSpace": targetSpace
         ])
     }
 }
