@@ -43,9 +43,6 @@ struct ExportOptionsView: View {
                 estimatedSizeSection
             }
             .navigationTitle("Export Settings")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
@@ -107,11 +104,7 @@ struct ExportOptionsView: View {
                     .tag(format)
                 }
             }
-            #if os(iOS)
-            .pickerStyle(.navigationLink)
-            #else
             .pickerStyle(.menu)
-            #endif
         } header: {
             Text("Format")
         } footer: {
@@ -135,11 +128,7 @@ struct ExportOptionsView: View {
                     .tag(quality)
                 }
             }
-            #if os(iOS)
-            .pickerStyle(.navigationLink)
-            #else
             .pickerStyle(.menu)
-            #endif
         } header: {
             Text("Quality")
         } footer: {
@@ -163,11 +152,7 @@ struct ExportOptionsView: View {
                     .tag(resolution)
                 }
             }
-            #if os(iOS)
-            .pickerStyle(.navigationLink)
-            #else
             .pickerStyle(.menu)
-            #endif
         } header: {
             Text("Resolution")
         } footer: {
@@ -191,11 +176,7 @@ struct ExportOptionsView: View {
                     .tag(colorSpace)
                 }
             }
-            #if os(iOS)
-            .pickerStyle(.navigationLink)
-            #else
             .pickerStyle(.menu)
-            #endif
         } header: {
             Text("Color Space")
         } footer: {
@@ -219,11 +200,7 @@ struct ExportOptionsView: View {
                     .tag(metadata)
                 }
             }
-            #if os(iOS)
-            .pickerStyle(.navigationLink)
-            #else
             .pickerStyle(.menu)
-            #endif
         } header: {
             Text("Metadata")
         } footer: {
@@ -279,7 +256,7 @@ private struct PresetCard: View {
             }
             .frame(width: 120, height: 100)
             .padding()
-            .background(Color(.secondarySystemBackground))
+            .background(Color(NSColor.controlBackgroundColor))
             .cornerRadius(12)
         }
         .buttonStyle(.plain)
@@ -332,9 +309,8 @@ private struct PresetPickerView: View {
                 .buttonStyle(.plain)
             }
             .navigationTitle("Export Presets")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Cancel") {
                         dismiss()
                     }

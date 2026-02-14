@@ -7,6 +7,19 @@
 
 import SwiftUI
 
+/// Represents a point on the tone curve
+struct ToneCurvePoint: Identifiable, Equatable {
+    let id: UUID
+    var x: Double // Input (0-1)
+    var y: Double // Output (0-1)
+
+    init(id: UUID = UUID(), x: Double, y: Double) {
+        self.id = id
+        self.x = x
+        self.y = y
+    }
+}
+
 struct ToneCurveView: View {
     @Binding var curvePoints: [ToneCurvePoint]
     let onChanged: () -> Void
@@ -73,10 +86,8 @@ struct ToneCurveView: View {
 
             // Curve presets
             HStack(spacing: 12) {
-                presetButton("Linear", points: .linear)
-                presetButton("S-Curve", points: .sCurve)
-                presetButton("Faded", points: .faded)
-                presetButton("Contrast+", points: .highContrast)
+                presetButton("Linear", points: ToneCurvePoint.linear)
+                presetButton("S-Curve", points: ToneCurvePoint.sCurve)
             }
         }
         .padding()
@@ -163,6 +174,16 @@ struct ToneCurveView: View {
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
+    // MARK: - Computed Properties
+
+    private var backgroundColor: Color {
+        #if os(iOS)
+        return Color(.systemBackground)
+        #else
+        return Color(NSColor.windowBackgroundColor)
+        #endif
+    }
+
     // MARK: - Helpers
 
     private func toCanvasPoint(_ point: ToneCurvePoint, size: CGSize) -> CGPoint {
@@ -182,12 +203,14 @@ struct ToneCurveView: View {
     private func updatePoint(_ id: UUID, to location: CGPoint, in size: CGSize) {
         guard let index = curvePoints.firstIndex(where: { $0.id == id }) else { return }
 
-        var newPoint = fromCanvasPoint(location, size: size)
-        newPoint.id = id
+        let tempPoint = fromCanvasPoint(location, size: size)
 
-        // Clamp to bounds
-        newPoint.x = max(0, min(1, newPoint.x))
-        newPoint.y = max(0, min(1, newPoint.y))
+        // Create new point with existing id and clamped values
+        let newPoint = ToneCurvePoint(
+            id: id,
+            x: max(0, min(1, tempPoint.x)),
+            y: max(0, min(1, tempPoint.y))
+        )
 
         curvePoints[index] = newPoint
     }
@@ -198,14 +221,7 @@ struct ToneCurveView: View {
     }
 }
 
-// MARK: - Tone Curve Point Model
-
-struct ToneCurvePoint: Identifiable, Codable, Equatable {
-    var id: UUID = UUID()
-    var x: Double  // Input (0.0 to 1.0)
-    var y: Double  // Output (0.0 to 1.0)
-
-    // Presets
+extension ToneCurvePoint {
     static var linear: [ToneCurvePoint] {
         [
             ToneCurvePoint(x: 0.0, y: 0.0),
@@ -216,36 +232,9 @@ struct ToneCurvePoint: Identifiable, Codable, Equatable {
     static var sCurve: [ToneCurvePoint] {
         [
             ToneCurvePoint(x: 0.0, y: 0.0),
-            ToneCurvePoint(x: 0.25, y: 0.2),
-            ToneCurvePoint(x: 0.75, y: 0.8),
+            ToneCurvePoint(x: 0.25, y: 0.20),
+            ToneCurvePoint(x: 0.75, y: 0.80),
             ToneCurvePoint(x: 1.0, y: 1.0)
         ]
-    }
-
-    static var faded: [ToneCurvePoint] {
-        [
-            ToneCurvePoint(x: 0.0, y: 0.1),
-            ToneCurvePoint(x: 1.0, y: 0.9)
-        ]
-    }
-
-    static var highContrast: [ToneCurvePoint] {
-        [
-            ToneCurvePoint(x: 0.0, y: 0.0),
-            ToneCurvePoint(x: 0.25, y: 0.15),
-            ToneCurvePoint(x: 0.75, y: 0.85),
-            ToneCurvePoint(x: 1.0, y: 1.0)
-        ]
-    }
-}
-
-// MARK: - ToneCurveView Extension
-extension ToneCurveView {
-    private var backgroundColor: Color {
-        #if os(iOS)
-        return Color(.systemBackground)
-        #else
-        return Color(NSColor.windowBackgroundColor)
-        #endif
     }
 }

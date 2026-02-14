@@ -54,16 +54,16 @@ struct BatchExportView: View {
                 }
             }
             .navigationTitle("Batch Export")
-            .navigationBarTitleDisplayMode(.inline)
+            
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()
                     }
                     .disabled(isExporting)
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     if !isExporting {
                         Button("Settings") {
                             showSettings = true
@@ -210,7 +210,7 @@ struct BatchExportView: View {
             }
         }
         .padding()
-        .background(Color(.secondarySystemBackground))
+        .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(12)
         .padding(.horizontal)
     }
@@ -310,7 +310,7 @@ private struct JobRow: View {
             }
         }
         .padding()
-        .background(isActive ? Color.blue.opacity(0.1) : Color(.tertiarySystemBackground))
+        .background(isActive ? Color.blue.opacity(0.1) : Color(NSColor.controlBackgroundColor))
         .cornerRadius(10)
     }
 }

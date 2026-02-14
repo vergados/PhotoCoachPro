@@ -59,12 +59,12 @@ struct ContentView: View {
                 }
                 .tag(2)
 
-            // Phase 5: Cloud Sync
-            SyncStatusView()
-                .tabItem {
-                    Label("Sync", systemImage: "icloud")
-                }
-                .tag(3)
+            // Phase 5: Cloud Sync (disabled for now)
+            // SyncStatusView()
+            //     .tabItem {
+            //         Label("Sync", systemImage: "icloud")
+            //     }
+            //     .tag(3)
         }
     }
 }

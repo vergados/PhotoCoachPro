@@ -226,7 +226,7 @@ actor SyncManager {
             height: photo.height,
             fileSizeBytes: photo.fileSizeBytes,
             importedDate: photo.importedDate,
-            modifiedDate: photo.modifiedDate,
+            modifiedDate: photo.editRecord?.modifiedDate ?? photo.importedDate,
             deviceID: await cloudKit.currentDeviceID
         )
 
@@ -240,13 +240,13 @@ actor SyncManager {
         }
 
         let encoder = JSONEncoder()
-        let instructionsData = try encoder.encode(editRecord.instructions)
+        let instructionsData = try encoder.encode(editRecord.editStack.activeInstructions)
 
         let cloudEdit = CloudEditRecord(
             id: editRecord.id,
             photoID: editRecord.photoID,
             instructionsData: instructionsData,
-            historyIndex: editRecord.historyIndex,
+            historyIndex: editRecord.editStack.currentIndex,
             modifiedDate: editRecord.modifiedDate,
             deviceID: await cloudKit.currentDeviceID
         )
@@ -302,11 +302,12 @@ actor SyncManager {
 
             if let existing = existing {
                 // Check for conflict
-                if existing.modifiedDate != cloudPhoto.modifiedDate {
+                let localModified = existing.editRecord?.modifiedDate ?? existing.importedDate
+                if localModified != cloudPhoto.modifiedDate {
                     detectConflict(
                         recordType: "Photo",
                         recordID: cloudPhoto.id,
-                        localModified: existing.modifiedDate,
+                        localModified: localModified,
                         remoteModified: cloudPhoto.modifiedDate,
                         localRecord: existing,
                         remoteRecord: cloudPhoto

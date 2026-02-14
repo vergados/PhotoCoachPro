@@ -170,9 +170,15 @@ struct SyncSettingsView: View {
                     HStack {
                         Text("Device ID")
                         Spacer()
+                        #if os(iOS)
                         Text(UIDevice.current.identifierForVendor?.uuidString.prefix(8) ?? "Unknown")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                        #else
+                        Text(getDeviceID().prefix(8))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        #endif
                     }
 
                     HStack {
@@ -186,9 +192,8 @@ struct SyncSettingsView: View {
                 }
             }
             .navigationTitle("Sync Settings")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
                         dismiss()
                     }
@@ -204,6 +209,19 @@ struct SyncSettingsView: View {
             }
         }
     }
+
+    #if os(macOS)
+    private func getDeviceID() -> String {
+        let defaults = UserDefaults.standard
+        let key = "com.photocoachpro.deviceID"
+        if let existing = defaults.string(forKey: key) {
+            return existing
+        }
+        let newID = UUID().uuidString
+        defaults.set(newID, forKey: key)
+        return newID
+    }
+    #endif
 
     private func resetSyncData() {
         // Reset sync data

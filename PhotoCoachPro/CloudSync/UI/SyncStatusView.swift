@@ -29,7 +29,7 @@ struct SyncStatusView: View {
                     .transition(.opacity)
             }
         }
-        .background(Color(.systemBackground))
+        .background(Color(NSColor.windowBackgroundColor))
         .task {
             await loadStatus()
         }
@@ -199,7 +199,7 @@ struct SyncStatusView: View {
                     Image(systemName: "gear")
                         .font(.subheadline)
                         .padding()
-                        .background(Color(.secondarySystemBackground))
+                        .background(Color(NSColor.controlBackgroundColor))
                         .cornerRadius(10)
                 }
             }

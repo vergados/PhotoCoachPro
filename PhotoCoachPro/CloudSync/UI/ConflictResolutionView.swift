@@ -23,9 +23,8 @@ struct ConflictResolutionView: View {
                 }
             }
             .navigationTitle("Sync Conflicts")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
                         dismiss()
                     }
@@ -199,7 +198,7 @@ private struct ConflictCard: View {
                 .foregroundColor(.secondary)
             }
             .padding()
-            .background(Color(.secondarySystemBackground))
+            .background(Color(NSColor.controlBackgroundColor))
             .cornerRadius(12)
         }
         .buttonStyle(.plain)
@@ -245,9 +244,8 @@ private struct ConflictDetailView: View {
                 .padding()
             }
             .navigationTitle("Resolve Conflict")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()
                     }
@@ -270,7 +268,7 @@ private struct ConflictDetailView: View {
             }
         }
         .padding()
-        .background(Color(.secondarySystemBackground))
+        .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(12)
     }
 
@@ -312,7 +310,7 @@ private struct ConflictDetailView: View {
             }
         }
         .padding()
-        .background(Color(.secondarySystemBackground))
+        .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(12)
     }
 
@@ -408,7 +406,7 @@ private struct ResolutionButton: View {
                     .foregroundColor(.secondary)
             }
             .padding()
-            .background(Color(.tertiarySystemBackground))
+            .background(Color(NSColor.controlBackgroundColor.blended(withFraction: 0.5, of: NSColor.windowBackgroundColor)!))
             .cornerRadius(10)
         }
         .buttonStyle(.plain)

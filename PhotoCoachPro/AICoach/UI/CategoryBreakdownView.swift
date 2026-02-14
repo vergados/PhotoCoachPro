@@ -204,7 +204,7 @@ private struct CategoryDetailCard: View {
             }
         }
         .padding()
-        .background(Color(.secondarySystemBackground))
+        .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(16)
     }
 

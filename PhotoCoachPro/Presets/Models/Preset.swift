@@ -120,12 +120,12 @@ struct Preset: Codable, Identifiable, Equatable, Hashable {
     }
 
     var affectsExposure: Bool {
-        editTypes.contains { $0 == .exposure || $0 == .brightness }
+        editTypes.contains { $0 == .exposure }
     }
 
     var affectsColor: Bool {
         editTypes.contains { type in
-            [.temperature, .tint, .saturation, .vibrance, .hue].contains(type)
+            [.temperature, .tint, .saturation, .vibrance].contains(type)
         }
     }
 
@@ -142,13 +142,13 @@ struct Preset: Codable, Identifiable, Equatable, Hashable {
         Preset(
             name: name,
             category: category,
-            instructions: editRecord.instructions
+            instructions: editRecord.editStack.activeInstructions
         )
     }
 
     /// Apply preset to edit record (replace all instructions)
     func applyTo(_ editRecord: inout EditRecord) {
-        editRecord.instructions = instructions
+        editRecord.editStack = EditStack(instructions: instructions)
     }
 
     /// Apply preset with strength (0.0 to 1.0)
@@ -158,13 +158,15 @@ struct Preset: Codable, Identifiable, Equatable, Hashable {
             scaled.value *= strength
             return scaled
         }
-        editRecord.instructions = scaledInstructions
+        editRecord.editStack = EditStack(instructions: scaledInstructions)
     }
 
     /// Merge preset with existing edits
     func mergeWith(_ editRecord: inout EditRecord) {
         // Add preset instructions after existing ones
-        editRecord.instructions.append(contentsOf: instructions)
+        var combined = editRecord.editStack.activeInstructions
+        combined.append(contentsOf: instructions)
+        editRecord.editStack = EditStack(instructions: combined)
     }
 
     /// Increment usage count

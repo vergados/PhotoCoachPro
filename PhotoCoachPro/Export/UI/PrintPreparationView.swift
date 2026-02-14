@@ -39,15 +39,15 @@ struct PrintPreparationView: View {
                 printInfoSection
             }
             .navigationTitle("Print Preparation")
-            .navigationBarTitleDisplayMode(.inline)
+            
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()
                     }
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Export") {
                         exportForPrint()
                     }
@@ -79,7 +79,7 @@ struct PrintPreparationView: View {
                     .tag(size)
                 }
             }
-            .pickerStyle(.navigationLink)
+            .pickerStyle(.menu)
             .onChange(of: printSize) { _, newSize in
                 updateResolutionForPrintSize(newSize)
             }
@@ -100,7 +100,7 @@ struct PrintPreparationView: View {
                 Text("300 DPI (Standard)").tag(300)
                 Text("600 DPI (High Quality)").tag(600)
             }
-            .pickerStyle(.navigationLink)
+            .pickerStyle(.menu)
         } header: {
             Text("Resolution (DPI)")
         } footer: {
@@ -124,7 +124,7 @@ struct PrintPreparationView: View {
                     .tag(type)
                 }
             }
-            .pickerStyle(.navigationLink)
+            .pickerStyle(.menu)
         } header: {
             Text("Paper Type")
         } footer: {

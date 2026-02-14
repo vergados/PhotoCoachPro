@@ -102,7 +102,7 @@ private struct FilterChip: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(isSelected ? Color.blue : Color(.secondarySystemBackground))
+            .background(isSelected ? Color.blue : Color(NSColor.controlBackgroundColor))
             .foregroundColor(isSelected ? .white : .primary)
             .cornerRadius(20)
         }
@@ -147,18 +147,7 @@ private struct SuggestionCard: View {
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            // Expected improvement
-            if suggestion.expectedImprovement > 0 {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .foregroundColor(.green)
-                        .font(.caption)
-
-                    Text("Expected improvement: +\(String(format: "%.0f", suggestion.expectedImprovement * 100))%")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
+            // Expected improvement info not available in data model
 
             // Apply button (if instruction available)
             if suggestion.instruction != nil {
@@ -180,7 +169,7 @@ private struct SuggestionCard: View {
             }
         }
         .padding()
-        .background(Color(.secondarySystemBackground))
+        .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(16)
         .overlay(
             RoundedRectangle(cornerRadius: 16)

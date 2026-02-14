@@ -42,15 +42,14 @@ struct PresetDetailView: View {
                 .padding()
             }
             .navigationTitle(preset.name)
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Close") {
                         dismiss()
                     }
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button(action: { isFavorite.toggle() }) {
                         Image(systemName: isFavorite ? "star.fill" : "star")
                             .foregroundColor(isFavorite ? .yellow : .primary)
@@ -104,7 +103,7 @@ struct PresetDetailView: View {
                             .fontWeight(.semibold)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(Color(.secondarySystemBackground))
+                            .background(Color(NSColor.controlBackgroundColor))
                             .foregroundColor(.primary)
                             .cornerRadius(8)
                     }
@@ -145,7 +144,7 @@ struct PresetDetailView: View {
                 .foregroundColor(.secondary)
         }
         .padding()
-        .background(Color(.secondarySystemBackground))
+        .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(12)
     }
 
@@ -253,7 +252,7 @@ struct PresetDetailView: View {
             }
         }
         .padding()
-        .background(Color(.secondarySystemBackground))
+        .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(12)
     }
 
@@ -271,7 +270,7 @@ struct PresetDetailView: View {
             }
         }
         .padding()
-        .background(Color(.secondarySystemBackground))
+        .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(12)
     }
 
@@ -303,7 +302,7 @@ struct PresetDetailView: View {
                     .font(.subheadline)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color(.secondarySystemBackground))
+                    .background(Color(NSColor.controlBackgroundColor))
                     .foregroundColor(.primary)
                     .cornerRadius(12)
                 }
@@ -318,7 +317,7 @@ struct PresetDetailView: View {
                         .font(.subheadline)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color(.secondarySystemBackground))
+                        .background(Color(NSColor.controlBackgroundColor))
                         .foregroundColor(.primary)
                         .cornerRadius(12)
                     }
@@ -401,19 +400,19 @@ private struct InstructionRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color(.tertiarySystemBackground))
+        .background(Color(NSColor.controlBackgroundColor.blended(withFraction: 0.5, of: NSColor.windowBackgroundColor)!))
         .cornerRadius(8)
     }
 
     private func iconForEditType(_ type: EditInstruction.EditType) -> String {
         switch type {
-        case .exposure, .brightness: return "sun.max"
+        case .exposure: return "sun.max"
         case .contrast: return "circle.lefthalf.filled"
         case .highlights, .shadows: return "sun.haze"
         case .temperature: return "thermometer"
         case .tint: return "paintbrush"
         case .saturation, .vibrance: return "paintpalette"
-        case .sharpness, .clarity: return "camera.aperture"
+        case .sharpAmount, .clarity: return "camera.aperture"
         default: return "slider.horizontal.3"
         }
     }

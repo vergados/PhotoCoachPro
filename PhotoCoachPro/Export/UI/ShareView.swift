@@ -31,15 +31,15 @@ struct ShareView: View {
                 }
             }
             .navigationTitle("Share")
-            .navigationBarTitleDisplayMode(.inline)
+            
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()
                     }
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Settings") {
                         showSettings = true
                     }
@@ -241,7 +241,7 @@ private struct SharePresetCard: View {
             }
             .frame(width: 140, height: 100)
             .padding()
-            .background(isSelected ? Color.blue : Color(.secondarySystemBackground))
+            .background(isSelected ? Color.blue : Color(NSColor.controlBackgroundColor))
             .cornerRadius(12)
         }
         .buttonStyle(.plain)

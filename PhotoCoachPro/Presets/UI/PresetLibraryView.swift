@@ -35,9 +35,8 @@ struct PresetLibraryView: View {
                 }
             }
             .navigationTitle("Presets")
-            .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Menu {
                         Button(action: { }) {
                             Label("Import Preset", systemImage: "square.and.arrow.down")
@@ -76,7 +75,7 @@ struct PresetLibraryView: View {
                 }
             }
             .padding(10)
-            .background(Color(.secondarySystemBackground))
+            .background(Color(NSColor.controlBackgroundColor))
             .cornerRadius(10)
             .padding(.horizontal)
 
@@ -117,7 +116,7 @@ struct PresetLibraryView: View {
             .padding(.horizontal)
         }
         .padding(.vertical, 12)
-        .background(Color(.systemBackground))
+        .background(Color(NSColor.windowBackgroundColor))
     }
 
     // MARK: - Presets Grid
@@ -256,7 +255,7 @@ private struct FilterChip: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(isSelected ? Color.blue : Color(.secondarySystemBackground))
+            .background(isSelected ? Color.blue : Color(NSColor.controlBackgroundColor))
             .foregroundColor(isSelected ? .white : .primary)
             .cornerRadius(20)
         }

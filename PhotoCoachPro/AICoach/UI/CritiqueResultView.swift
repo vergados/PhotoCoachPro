@@ -51,7 +51,6 @@ struct CritiqueResultView: View {
             }
         }
         .navigationTitle("Photo Critique")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     // MARK: - Header
@@ -88,7 +87,7 @@ struct CritiqueResultView: View {
                 .padding(.horizontal)
         }
         .padding(.vertical, 24)
-        .background(Color(.systemBackground))
+        .background(Color(NSColor.windowBackgroundColor))
     }
 
     // MARK: - Overview Content
@@ -131,7 +130,7 @@ struct CritiqueResultView: View {
                         Spacer()
                     }
                     .padding()
-                    .background(Color(.secondarySystemBackground))
+                    .background(Color(NSColor.controlBackgroundColor))
                     .cornerRadius(12)
                 }
             }
@@ -162,15 +161,15 @@ struct CritiqueResultView: View {
             HStack(spacing: 12) {
                 StatCard(
                     icon: "checkmark.circle.fill",
-                    value: "\(critique.categories.strengths.count)",
-                    label: "Strengths",
+                    value: String(format: "%.0f", critique.categories.averageScore * 100),
+                    label: "Avg Score",
                     color: .green
                 )
 
                 StatCard(
                     icon: "exclamationmark.triangle.fill",
-                    value: "\(critique.categories.totalIssues)",
-                    label: "Issues",
+                    value: critique.categories.weakestCategory.name,
+                    label: "Weakest",
                     color: .orange
                 )
 
@@ -207,32 +206,31 @@ struct CritiqueResultView: View {
             }
 
             // Weakest category
-            if let weakest = critique.categories.weakestCategory {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Focus Area")
-                        .font(.headline)
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Focus Area")
+                    .font(.headline)
 
-                    HStack(spacing: 12) {
-                        Image(systemName: "target")
-                            .foregroundColor(.orange)
-                            .font(.title2)
+                let weakest = critique.categories.weakestCategory
+                HStack(spacing: 12) {
+                    Image(systemName: "target")
+                        .foregroundColor(.orange)
+                        .font(.title2)
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(weakest.name)
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(weakest.name)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
 
-                            Text("Score: \(String(format: "%.0f", weakest.score.score * 100))%")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-
-                        Spacer()
+                        Text("Score: \(String(format: "%.0f", weakest.score.score * 100))%")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-                    .padding()
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(12)
+
+                    Spacer()
                 }
+                .padding()
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(12)
             }
         }
     }
@@ -272,7 +270,7 @@ private struct CategoryScoreCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(Color(.secondarySystemBackground))
+        .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(12)
     }
 
@@ -307,7 +305,7 @@ private struct StatCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(Color(.secondarySystemBackground))
+        .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(12)
     }
 }

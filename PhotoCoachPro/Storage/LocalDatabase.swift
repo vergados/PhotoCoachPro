@@ -17,27 +17,23 @@ class LocalDatabase: ObservableObject {
     var context: ModelContext { container.mainContext }
 
     private init() {
-        let schema = Schema([
-            PhotoRecord.self,
-            EditRecord.self,
-            MaskRecord.self,
-            RAWSettingsRecord.self,
-            CritiqueRecord.self,
-            PresetRecord.self
-        ])
-
-        let modelConfiguration = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: false,
-            allowsSave: true
-        )
-
         do {
+            // Simple ModelContainer initialization
             container = try ModelContainer(
-                for: schema,
-                configurations: [modelConfiguration]
+                for: PhotoRecord.self,
+                      EditRecord.self,
+                      MaskRecord.self,
+                      RAWSettingsRecord.self,
+                      CritiqueRecord.self,
+                      PresetRecord.self
             )
         } catch {
+            // Print error for debugging
+            print("❌ ModelContainer initialization failed: \(error)")
+            print("❌ Error details: \(error.localizedDescription)")
+            if let detailedError = error as? CustomDebugStringConvertible {
+                print("❌ Debug description: \(detailedError.debugDescription)")
+            }
             fatalError("Could not create ModelContainer: \(error)")
         }
     }

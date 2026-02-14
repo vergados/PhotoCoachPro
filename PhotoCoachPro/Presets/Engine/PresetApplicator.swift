@@ -37,17 +37,16 @@ actor PresetApplicator {
 
         switch mode {
         case .replace:
-            editRecord.instructions = instructions
+            editRecord.editStack = EditStack(instructions: instructions)
 
         case .append:
-            editRecord.instructions.append(contentsOf: instructions)
+            var combined = editRecord.editStack.activeInstructions
+            combined.append(contentsOf: instructions)
+            editRecord.editStack = EditStack(instructions: combined)
 
         case .merge:
             mergeInstructions(instructions, into: &editRecord)
         }
-
-        // Reset history pointer to end
-        editRecord.historyIndex = editRecord.instructions.count
     }
 
     /// Apply preset and render preview
@@ -94,7 +93,7 @@ actor PresetApplicator {
 
     /// Merge preset instructions with existing edits
     private func mergeInstructions(_ presetInstructions: [EditInstruction], into editRecord: inout EditRecord) {
-        var merged = editRecord.instructions
+        var merged = editRecord.editStack.activeInstructions
 
         for presetInstruction in presetInstructions {
             // Check if this edit type already exists
@@ -107,7 +106,7 @@ actor PresetApplicator {
             }
         }
 
-        editRecord.instructions = merged
+        editRecord.editStack = EditStack(instructions: merged)
     }
 
     // MARK: - Batch Application

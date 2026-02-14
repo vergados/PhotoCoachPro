@@ -19,6 +19,7 @@ final class RAWSettingsRecord {
     @Attribute(.externalStorage) var settingsData: Data?
 
     // Relationship back to photo
+    @Relationship(deleteRule: .nullify, inverse: \PhotoRecord.rawSettings)
     var photo: PhotoRecord?
 
     // Computed property

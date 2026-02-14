@@ -19,6 +19,7 @@ final class MaskRecord {
     @Attribute(.externalStorage) var maskLayerData: Data?
 
     // Relationship back to photo
+    @Relationship(deleteRule: .nullify, inverse: \PhotoRecord.masks)
     var photo: PhotoRecord?
 
     // Computed property

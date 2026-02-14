@@ -19,6 +19,7 @@ final class EditRecord {
     @Attribute(.externalStorage) var editGraphData: Data?
 
     // Relationship back to photo
+    @Relationship(deleteRule: .nullify, inverse: \PhotoRecord.editRecord)
     var photo: PhotoRecord?
 
     // Computed property

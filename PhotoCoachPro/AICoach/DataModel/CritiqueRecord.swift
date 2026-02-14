@@ -101,19 +101,14 @@ final class CritiqueRecord {
         let categories = try decoder.decode(CritiqueResult.CategoryBreakdown.self, from: categoriesData)
         let editGuidance = try decoder.decode([CritiqueResult.EditSuggestion].self, from: editGuidanceData)
 
-        guard let rating = CritiqueResult.OverallRating(rawValue: overallRating) else {
-            throw CritiqueError.invalidRating
-        }
-
         return CritiqueResult(
             id: id,
             photoID: photoID,
             timestamp: timestamp,
             overallScore: overallScore,
-            overallRating: rating,
             overallSummary: overallSummary,
-            categories: categories,
             topImprovements: topImprovements,
+            categories: categories,
             editGuidance: editGuidance,
             practiceRecommendation: practiceRecommendation
         )
@@ -123,20 +118,14 @@ final class CritiqueRecord {
 // MARK: - PhotoRecord Extension
 
 extension PhotoRecord {
-    @Relationship(deleteRule: .cascade)
-    var critiques: [CritiqueRecord]? {
-        get { nil }  // Managed by SwiftData
-        set { }
-    }
-
     /// Get most recent critique
     var latestCritique: CritiqueRecord? {
-        critiques?.sorted { $0.timestamp > $1.timestamp }.first
+        critiques.sorted { $0.timestamp > $1.timestamp }.first
     }
 
     /// Get all critiques sorted by date
     var sortedCritiques: [CritiqueRecord] {
-        critiques?.sorted { $0.timestamp > $1.timestamp } ?? []
+        critiques.sorted { $0.timestamp > $1.timestamp }
     }
 }
 

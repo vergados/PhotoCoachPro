@@ -28,6 +28,7 @@ final class PhotoRecord {
     @Relationship(deleteRule: .cascade) var editRecord: EditRecord?
     @Relationship(deleteRule: .cascade) var masks: [MaskRecord] = []
     @Relationship(deleteRule: .cascade) var rawSettings: RAWSettingsRecord?
+    @Relationship(deleteRule: .cascade) var critiques: [CritiqueRecord] = []
 
     // Computed properties
     var exifSnapshot: EXIFData? {

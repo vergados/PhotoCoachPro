@@ -58,7 +58,9 @@ struct SavePresetView: View {
 
                     TextField("Tags (comma separated)", text: $tags)
                         .autocorrectionDisabled()
+                        #if os(iOS)
                         .autocapitalization(.none)
+                        #endif
                 } header: {
                     Text("Description & Tags")
                 } footer: {
@@ -72,14 +74,14 @@ struct SavePresetView: View {
                             Image(systemName: "slider.horizontal.3")
                                 .foregroundColor(.blue)
 
-                            Text("\(editRecord.instructions.count) adjustments")
+                            Text("\(editRecord.editStack.activeInstructions.count) adjustments")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
 
-                        if !editRecord.instructions.isEmpty {
+                        if !editRecord.editStack.activeInstructions.isEmpty {
                             VStack(alignment: .leading, spacing: 6) {
-                                ForEach(editRecord.instructions.prefix(5)) { instruction in
+                                ForEach(editRecord.editStack.activeInstructions.prefix(5)) { instruction in
                                     HStack {
                                         Text(instruction.type.rawValue)
                                             .font(.caption)
@@ -93,8 +95,8 @@ struct SavePresetView: View {
                                     }
                                 }
 
-                                if editRecord.instructions.count > 5 {
-                                    Text("+ \(editRecord.instructions.count - 5) more")
+                                if editRecord.editStack.activeInstructions.count > 5 {
+                                    Text("+ \(editRecord.editStack.activeInstructions.count - 5) more")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
@@ -111,15 +113,14 @@ struct SavePresetView: View {
                 }
             }
             .navigationTitle("Save Preset")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()
                     }
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         Task {
                             await savePreset()
@@ -154,7 +155,7 @@ struct SavePresetView: View {
                 )
             }
 
-            if editRecord.instructions.isEmpty {
+            if editRecord.editStack.activeInstructions.isEmpty {
                 ValidationRow(
                     icon: "exclamationmark.triangle.fill",
                     message: "No adjustments to save",
@@ -163,13 +164,13 @@ struct SavePresetView: View {
             } else {
                 ValidationRow(
                     icon: "checkmark.circle.fill",
-                    message: "\(editRecord.instructions.count) adjustments ready",
+                    message: "\(editRecord.editStack.activeInstructions.count) adjustments ready",
                     isError: false
                 )
             }
 
             // Duplicate type warning
-            let duplicateTypes = Dictionary(grouping: editRecord.instructions, by: { $0.type })
+            let duplicateTypes = Dictionary(grouping: editRecord.editStack.activeInstructions, by: { $0.type })
                 .filter { $0.value.count > 1 }
 
             if !duplicateTypes.isEmpty {
@@ -186,7 +187,7 @@ struct SavePresetView: View {
 
     private var canSave: Bool {
         !presetName.trimmingCharacters(in: .whitespaces).isEmpty &&
-        !editRecord.instructions.isEmpty
+        !editRecord.editStack.activeInstructions.isEmpty
     }
 
     private var parsedTags: [String] {
