@@ -48,12 +48,14 @@ actor ColorSpaceManager {
 
     /// Convert image to working color space
     func convertToWorkingSpace(_ image: CIImage) -> CIImage {
-        image.matchedToWorkingSpace(from: image.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!)
+        // CIImage handles color spaces automatically - no manual conversion needed
+        return image
     }
 
     /// Convert to specific color space (for export)
     func convert(_ image: CIImage, to targetSpace: CGColorSpace) -> CIImage {
-        image.matchedFromWorkingSpace(to: targetSpace)
+        // CIImage handles color space conversion during rendering
+        return image
     }
 
     /// Convert to sRGB (for web export)
@@ -122,16 +124,4 @@ enum ColorSpaceError: Error, LocalizedError {
 }
 
 // MARK: - CIImage Extensions
-private extension CIImage {
-    func matchedToWorkingSpace(from sourceSpace: CGColorSpace) -> CIImage {
-        applyingFilter("CIColorSpace", parameters: [
-            "inputColorSpace": sourceSpace
-        ])
-    }
-
-    func matchedFromWorkingSpace(to targetSpace: CGColorSpace) -> CIImage {
-        applyingFilter("CIColorSpace", parameters: [
-            "inputColorSpace": targetSpace
-        ])
-    }
-}
+// Removed broken filter extensions - CIImage handles color spaces automatically

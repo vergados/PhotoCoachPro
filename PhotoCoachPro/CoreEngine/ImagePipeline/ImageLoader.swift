@@ -34,8 +34,7 @@ actor ImageLoader {
 
     private func loadStandard(from url: URL) async throws -> LoadedImage {
         let options: [CIImageOption: Any] = [
-            .applyOrientationProperty: true,
-            .properties: true
+            .applyOrientationProperty: true
         ]
 
         guard let ciImage = CIImage(contentsOf: url, options: options) else {
