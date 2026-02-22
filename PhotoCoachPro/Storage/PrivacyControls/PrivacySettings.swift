@@ -28,11 +28,16 @@ class PrivacySettings: ObservableObject {
         didSet { UserDefaults.standard.set(allowNetworkAccess, forKey: Keys.allowNetwork) }
     }
 
+    @Published var cloudSyncEnabled: Bool {
+        didSet { UserDefaults.standard.set(cloudSyncEnabled, forKey: Keys.cloudSyncEnabled) }
+    }
+
     private enum Keys {
         static let stripMetadata = "privacy.stripMetadata"
         static let stripLocation = "privacy.stripLocation"
         static let saveCritiques = "privacy.saveCritiques"
         static let allowNetwork = "privacy.allowNetwork"
+        static let cloudSyncEnabled = "privacy.cloudSyncEnabled"
     }
 
     private init() {
@@ -40,6 +45,7 @@ class PrivacySettings: ObservableObject {
         self.stripLocationOnExport = UserDefaults.standard.bool(forKey: Keys.stripLocation)
         self.saveCritiqueHistory = UserDefaults.standard.bool(forKey: Keys.saveCritiques)
         self.allowNetworkAccess = UserDefaults.standard.bool(forKey: Keys.allowNetwork)
+        self.cloudSyncEnabled = UserDefaults.standard.bool(forKey: Keys.cloudSyncEnabled)
     }
 
     // MARK: - Quick Actions
@@ -49,6 +55,7 @@ class PrivacySettings: ObservableObject {
         stripLocationOnExport = false
         saveCritiqueHistory = true
         allowNetworkAccess = false
+        cloudSyncEnabled = false
     }
 
     func maximumPrivacy() {
@@ -56,5 +63,6 @@ class PrivacySettings: ObservableObject {
         stripLocationOnExport = true
         saveCritiqueHistory = false
         allowNetworkAccess = false
+        cloudSyncEnabled = false
     }
 }

@@ -8,6 +8,7 @@ import Foundation
 import CoreImage
 import CoreGraphics
 import UniformTypeIdentifiers
+import Photos
 
 /// Loads images from various sources into CIImage
 actor ImageLoader {
@@ -30,6 +31,108 @@ actor ImageLoader {
                 return try await self.loadRAW(from: url)
             case .standard:
                 return try await self.loadStandard(from: url)
+            }
+        }
+    }
+
+    // MARK: - Load from Photos Library
+
+    /// Load a photo from the Photos library using its asset local identifier
+    func loadFromAsset(localIdentifier: String) async throws -> LoadedImage {
+        let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [localIdentifier], options: nil)
+        guard let asset = fetchResult.firstObject else {
+            throw ImageLoadError.assetNotFound
+        }
+
+        // Determine file type from original filename
+        let originalFilename = PHAssetResource.assetResources(for: asset).first?.originalFilename ?? "image.jpeg"
+        let fileType = URL(fileURLWithPath: originalFilename).pathExtension.lowercased()
+
+        // Request original image data via async/await bridge
+        let imageData: Data = try await withCheckedThrowingContinuation { continuation in
+            var hasResumed = false
+            let options = PHImageRequestOptions()
+            options.version = .original
+            options.isNetworkAccessAllowed = true
+
+            PHImageManager.default().requestImageDataAndOrientation(for: asset, options: options) { data, _, _, _ in
+                guard !hasResumed else { return }
+                hasResumed = true
+                if let data = data {
+                    continuation.resume(returning: data)
+                } else {
+                    continuation.resume(throwing: ImageLoadError.assetNotFound)
+                }
+            }
+        }
+
+        guard let ciImage = CIImage(data: imageData) else {
+            throw ImageLoadError.invalidImage
+        }
+
+        let exifData = extractEXIF(from: ciImage.properties)
+        let workingImage = await colorSpaceManager.convertToWorkingSpace(ciImage)
+
+        return LoadedImage(
+            image: workingImage,
+            originalColorSpace: ciImage.colorSpace,
+            metadata: exifData,
+            fileType: fileType.isEmpty ? "jpeg" : fileType
+        )
+    }
+
+    // MARK: - Load from Security-Scoped Bookmark
+
+    /// Load a photo from a persisted security-scoped bookmark
+    func loadFromBookmark(data: Data) async throws -> LoadedImage {
+        var isStale = false
+
+        #if os(macOS)
+        guard let resolvedURL = try? URL(
+            resolvingBookmarkData: data,
+            options: .withSecurityScope,
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        ) else {
+            throw ImageLoadError.bookmarkResolutionFailed
+        }
+        #else
+        guard let resolvedURL = try? URL(
+            resolvingBookmarkData: data,
+            options: [],
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        ) else {
+            throw ImageLoadError.bookmarkResolutionFailed
+        }
+        #endif
+
+        if isStale {
+            // TODO: update record with refreshed bookmark
+            print("⚠️ ImageLoader: bookmark is stale for \(resolvedURL.lastPathComponent)")
+        }
+
+        let didAccess = resolvedURL.startAccessingSecurityScopedResource()
+        defer { if didAccess { resolvedURL.stopAccessingSecurityScopedResource() } }
+
+        return try await load(from: resolvedURL)
+    }
+
+    // MARK: - Unified Router
+
+    /// Load a photo using the appropriate method based on its source type
+    func loadImage(for photo: PhotoRecord) async throws -> LoadedImage {
+        switch photo.resolvedSourceType {
+        case .photosLibrary:
+            guard let id = photo.assetIdentifier else {
+                throw ImageLoadError.assetNotFound
+            }
+            return try await loadFromAsset(localIdentifier: id)
+        case .fileSystem:
+            if let bookmark = photo.bookmarkData {
+                return try await loadFromBookmark(data: bookmark)
+            } else {
+                return try await load(from: photo.fileURL)  // legacy path
             }
         }
     }
@@ -215,6 +318,8 @@ enum ImageLoadError: Error, LocalizedError {
     case rawDecodingFailed
     case fileNotFound
     case timeout
+    case assetNotFound
+    case bookmarkResolutionFailed
 
     var errorDescription: String? {
         switch self {
@@ -228,6 +333,10 @@ enum ImageLoadError: Error, LocalizedError {
             return "Image file not found"
         case .timeout:
             return "Image loading timed out (file may be corrupted)"
+        case .assetNotFound:
+            return "Photo not found in library"
+        case .bookmarkResolutionFailed:
+            return "Could not resolve file location"
         }
     }
 }

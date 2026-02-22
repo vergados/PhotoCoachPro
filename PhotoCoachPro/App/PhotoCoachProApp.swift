@@ -64,6 +64,20 @@ struct ContentView: View {
                     Label("Coaching", systemImage: "star.fill")
                 }
                 .tag(AppState.AppTab.coaching)
+
+            // Panorama Stitching
+            PanoramaStitchingView()
+                .tabItem {
+                    Label("Panorama", systemImage: "panorama")
+                }
+                .tag(AppState.AppTab.panorama)
+
+            // DPI Upscaling
+            DPIUpscalingView()
+                .tabItem {
+                    Label("Upscaling", systemImage: "arrow.up.forward.square")
+                }
+                .tag(AppState.AppTab.upscaling)
         }
     }
 }
@@ -76,17 +90,36 @@ struct CritiqueDashboardView: View {
 
     @State private var selectedPhoto: PhotoRecord?
     @State private var critiqueResult: CritiqueResult?
+    @State private var quickMetricsResult: QuickMetricsResult?
     @State private var isAnalyzing = false
     @State private var analyzer = ImageAnalyzer()
+    @State private var analysisMode: AnalysisMode = .ai
+
+    enum AnalysisMode {
+        case ai       // Full AI coaching
+        case quick    // Quick metrics
+    }
 
     var body: some View {
         NavigationStack {
-            if let result = critiqueResult, let photo = selectedPhoto {
+            if let result = critiqueResult, let photo = selectedPhoto, analysisMode == .ai {
                 CritiqueResultView(critique: result)
                     .toolbar {
                         ToolbarItem(placement: .primaryAction) {
                             Button("Analyze Another") {
                                 critiqueResult = nil
+                                quickMetricsResult = nil
+                                selectedPhoto = nil
+                            }
+                        }
+                    }
+            } else if let result = quickMetricsResult, let photo = selectedPhoto, analysisMode == .quick {
+                QuickMetricsView(result: result)
+                    .toolbar {
+                        ToolbarItem(placement: .primaryAction) {
+                            Button("Analyze Another") {
+                                critiqueResult = nil
+                                quickMetricsResult = nil
                                 selectedPhoto = nil
                             }
                         }
@@ -129,33 +162,48 @@ struct CritiqueDashboardView: View {
     private var photoSelectionView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                // Analysis mode picker
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Analysis Type")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal)
+
+                    Picker("Analysis Mode", selection: $analysisMode) {
+                        Label("AI Coaching", systemImage: "sparkles").tag(AnalysisMode.ai)
+                        Label("Quick Metrics", systemImage: "speedometer").tag(AnalysisMode.quick)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+
+                    Text(analysisMode == .ai ?
+                         "In-depth AI analysis with compositional and aesthetic critique" :
+                         "Fast technical metrics (color, sharpness, exposure)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal)
+                }
+
+                Divider()
+                    .padding(.vertical, 8)
+
                 Text("Select a photo to analyze (\(photos.count) photos)")
                     .font(.headline)
                     .padding(.horizontal)
 
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 200, maximum: 300), spacing: 16)], spacing: 16) {
                     ForEach(photos) { photo in
-                        Button(action: {
+                        PhotoGridItem(photo: photo) {
                             analyzePhoto(photo)
-                        }) {
-                            VStack {
-                                Image(systemName: "photo")
-                                    .font(.system(size: 60))
-                                Text(photo.fileName)
-                                    .font(.caption)
-                            }
-                            .frame(width: 200, height: 200)
-                            .background(Color.blue.opacity(0.2))
-                            .cornerRadius(12)
                         }
-                        .buttonStyle(.plain)
+                        .frame(height: 200)
                     }
                 }
                 .padding(.horizontal)
             }
             .padding(.vertical)
         }
-        .navigationTitle("AI Coaching")
+        .navigationTitle(analysisMode == .ai ? "AI Coaching" : "Quick Analysis")
     }
 
     private func analyzePhoto(_ photo: PhotoRecord) {
@@ -164,15 +212,30 @@ struct CritiqueDashboardView: View {
 
         Task {
             do {
-                let loaded = try await appState.imageLoader.load(from: photo.fileURL)
-                let result = try await analyzer.analyze(loaded.image, photoID: photo.id)
+                let loaded = try await appState.imageLoader.loadImage(for: photo)
 
-                let record = try CritiqueRecord.from(result)
-                try appState.database.saveCritique(record)
+                if analysisMode == .ai {
+                    // AI Coaching analysis
+                    let result = try await analyzer.analyze(loaded.image, photoID: photo.id)
 
-                await MainActor.run {
-                    critiqueResult = result
-                    isAnalyzing = false
+                    let record = try CritiqueRecord.from(result)
+                    try appState.database.saveCritique(record)
+                    appState.recordCritiqueResult(result)
+
+                    await MainActor.run {
+                        critiqueResult = result
+                        quickMetricsResult = nil
+                        isAnalyzing = false
+                    }
+                } else {
+                    // Quick metrics analysis
+                    let result = try await appState.quickMetricsAnalyzer.analyze(loaded.image)
+
+                    await MainActor.run {
+                        quickMetricsResult = result
+                        critiqueResult = nil
+                        isAnalyzing = false
+                    }
                 }
             } catch {
                 await MainActor.run {
