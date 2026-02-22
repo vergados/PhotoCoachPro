@@ -13,6 +13,7 @@ struct PhotoGridItem: View {
 
     @State private var isHovering = false
     @State private var thumbnail: NSImage?
+    @State private var loadingFailed = false
     @EnvironmentObject var appState: AppState
 
     var body: some View {
@@ -24,11 +25,14 @@ struct PhotoGridItem: View {
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                 } else {
-                    // Loading placeholder
+                    // Loading placeholder or error state
                     RoundedRectangle(cornerRadius: 16)
                         .fill(
                             LinearGradient(
-                                colors: [
+                                colors: loadingFailed ? [
+                                    Color.red.opacity(0.15),
+                                    Color.red.opacity(0.25)
+                                ] : [
                                     Color.gray.opacity(0.15),
                                     Color.gray.opacity(0.25)
                                 ],
@@ -38,9 +42,17 @@ struct PhotoGridItem: View {
                         )
                         .aspectRatio(photo.aspectRatio, contentMode: .fill)
                         .overlay(
-                            Image(systemName: "photo")
-                                .font(.system(size: 32, weight: .ultraLight))
-                                .foregroundStyle(.secondary.opacity(0.3))
+                            VStack(spacing: 8) {
+                                Image(systemName: loadingFailed ? "exclamationmark.triangle" : "photo")
+                                    .font(.system(size: 32, weight: .ultraLight))
+                                    .foregroundStyle(loadingFailed ? Color.red.opacity(0.6) : .secondary.opacity(0.3))
+
+                                if loadingFailed {
+                                    Text("Load Failed")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundStyle(.red.opacity(0.8))
+                                }
+                            }
                         )
                 }
 
@@ -115,8 +127,8 @@ struct PhotoGridItem: View {
 
     private func loadThumbnail() async {
         do {
-            // Load image
-            let loaded = try await appState.imageLoader.load(from: photo.fileURL)
+            // Load image via unified router (supports Photos library, bookmarks, and legacy file paths)
+            let loaded = try await appState.imageLoader.loadImage(for: photo)
 
             // Generate thumbnail
             let cacheKey = ThumbnailCache.CacheKey(photoID: photo.id, editStack: [])
@@ -126,7 +138,10 @@ struct PhotoGridItem: View {
                 }
             }
         } catch {
-            print("Failed to load thumbnail for \(photo.fileName): \(error)")
+            // Show error state in UI instead of just printing
+            await MainActor.run {
+                self.loadingFailed = true
+            }
         }
     }
 }

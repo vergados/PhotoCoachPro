@@ -13,6 +13,8 @@ final class PhotoRecord {
     @Attribute(.unique) var id: UUID
     var filePath: String
     var assetIdentifier: String?
+    var sourceType: String?      // "photosLibrary" | "fileSystem" | nil (legacy = fileSystem)
+    var bookmarkData: Data?      // security-scoped bookmark for file-system imports
     var fileName: String
     var createdDate: Date
     var importedDate: Date
@@ -52,11 +54,15 @@ final class PhotoRecord {
         height: Int,
         fileFormat: String,
         fileSizeBytes: Int64,
-        exifSnapshot: EXIFData? = nil
+        exifSnapshot: EXIFData? = nil,
+        sourceType: String? = nil,
+        bookmarkData: Data? = nil
     ) {
         self.id = id
         self.filePath = filePath
         self.assetIdentifier = assetIdentifier
+        self.sourceType = sourceType
+        self.bookmarkData = bookmarkData
         self.fileName = fileName
         self.createdDate = createdDate
         self.importedDate = importedDate
@@ -70,6 +76,15 @@ final class PhotoRecord {
 
 // MARK: - Convenience Extensions
 extension PhotoRecord {
+    enum PhotoSourceType {
+        case photosLibrary
+        case fileSystem
+    }
+
+    var resolvedSourceType: PhotoSourceType {
+        sourceType == "photosLibrary" ? .photosLibrary : .fileSystem
+    }
+
     var fileURL: URL {
         URL(fileURLWithPath: filePath)
     }

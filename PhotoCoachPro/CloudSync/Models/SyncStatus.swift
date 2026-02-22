@@ -24,7 +24,7 @@ struct SyncStatus: Codable, Equatable {
         pendingDownloads: Int = 0,
         errors: [SyncError] = [],
         iCloudAvailable: Bool = false,
-        autoSyncEnabled: Bool = true
+        autoSyncEnabled: Bool = false
     ) {
         self.state = state
         self.lastSyncDate = lastSyncDate

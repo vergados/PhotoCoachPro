@@ -25,7 +25,8 @@ class LocalDatabase: ObservableObject {
                       MaskRecord.self,
                       RAWSettingsRecord.self,
                       CritiqueRecord.self,
-                      PresetRecord.self
+                      PresetRecord.self,
+                      SkillHistoryRecord.self
             )
         } catch {
             // Print error for debugging
@@ -242,6 +243,25 @@ class LocalDatabase: ObservableObject {
 
     func deletePreset(_ preset: PresetRecord) throws {
         context.delete(preset)
+        try context.save()
+    }
+
+    // MARK: - SkillHistory Operations
+
+    func fetchSkillHistoryRecord(userID: UUID) -> SkillHistoryRecord? {
+        let descriptor = FetchDescriptor<SkillHistoryRecord>(
+            predicate: #Predicate { $0.id == userID }
+        )
+        return try? context.fetch(descriptor).first
+    }
+
+    func saveSkillHistoryRecord(_ record: SkillHistoryRecord) throws {
+        context.insert(record)
+        try context.save()
+    }
+
+    func updateSkillHistoryRecord(_ record: SkillHistoryRecord) throws {
+        // SwiftData tracks dirty objects automatically; just save the context
         try context.save()
     }
 

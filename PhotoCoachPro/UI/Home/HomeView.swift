@@ -51,9 +51,8 @@ struct HomeView: View {
             }
             .onChange(of: selectedItem) { _, newItem in
                 Task {
-                    if let data = try? await newItem?.loadTransferable(type: Data.self),
-                       let tempURL = saveTempFile(data: data) {
-                        await appState.importPhoto(from: tempURL)
+                    if let identifier = newItem?.itemIdentifier {
+                        await appState.importPhotoFromLibrary(assetIdentifier: identifier)
                     }
                 }
             }
@@ -179,24 +178,34 @@ struct HomeView: View {
             allowedContentTypes: [.image, .jpeg, .png, .heic, .rawImage],
             allowsMultipleSelection: false
         ) { result in
-            print("🔵 File importer callback triggered")
             Task {
                 switch result {
                 case .success(let urls):
-                    print("🔵 File picker success: \(urls.count) files")
                     if let url = urls.first {
-                        print("🔵 Selected file: \(url.lastPathComponent)")
-                        // Get access to security-scoped resource
                         let accessGranted = url.startAccessingSecurityScopedResource()
-                        print("🔵 Security access granted: \(accessGranted)")
-                        defer { url.stopAccessingSecurityScopedResource() }
+                        defer { if accessGranted { url.stopAccessingSecurityScopedResource() } }
 
-                        await appState.importPhoto(from: url)
-                    } else {
-                        print("❌ No file in URLs array")
+                        // Create a persistent bookmark while security-scoped access is active
+                        #if os(macOS)
+                        let bookmarkData = try? url.bookmarkData(
+                            options: .withSecurityScope,
+                            includingResourceValuesForKeys: nil,
+                            relativeTo: nil
+                        )
+                        #else
+                        let bookmarkData = try? url.bookmarkData(
+                            options: [],
+                            includingResourceValuesForKeys: nil,
+                            relativeTo: nil
+                        )
+                        #endif
+
+                        await appState.importPhotoFromFileSystem(url: url, bookmarkData: bookmarkData)
                     }
                 case .failure(let error):
-                    print("❌ File picker error: \(error)")
+                    await MainActor.run {
+                        appState.errorMessage = "Failed to import photo: \(error.localizedDescription)"
+                    }
                 }
             }
         }
@@ -210,16 +219,6 @@ struct HomeView: View {
         #endif
     }
 
-    // MARK: - Helpers
-
-    private func saveTempFile(data: Data) -> URL? {
-        let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension("jpg")
-
-        try? data.write(to: tempURL)
-        return tempURL
-    }
 }
 
 // MARK: - Modern Stat Card Component
