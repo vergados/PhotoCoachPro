@@ -152,11 +152,11 @@ actor EditGraphEngine {
 
         // MARK: HSL
         case .hslHue:
-            return applyHSLHue(image, degrees: instruction.value)
+            return applyHSLHue(image, instruction: instruction)
         case .hslSaturation:
-            return applyHSLSaturation(image, amount: instruction.value)
+            return applyHSLSaturation(image, instruction: instruction)
         case .hslLuminance:
-            return applyHSLLuminance(image, amount: instruction.value)
+            return applyHSLLuminance(image, instruction: instruction)
 
         // MARK: Tone Curve / Crop (managed in view state)
         case .toneCurveControlPoint:
@@ -477,26 +477,169 @@ actor EditGraphEngine {
 
     // MARK: - HSL Adjustments
 
-    private func applyHSLHue(_ image: CIImage, degrees: Double) -> CIImage {
-        guard degrees != 0 else { return image }
-        let angle = degrees * .pi / 180.0
-        return image.applyingFilter("CIHueAdjust", parameters: [
-            kCIInputAngleKey: angle
-        ])
+    /// Hue ranges per channel: (center in degrees, half-width in degrees).
+    /// Red wraps through 0°; distance calculation uses angular wrapping.
+    private static let channelHueRanges: [String: (center: Double, halfWidth: Double)] = [
+        "red":     (center:   0, halfWidth: 20),
+        "orange":  (center:  30, halfWidth: 15),
+        "yellow":  (center:  60, halfWidth: 15),
+        "green":   (center: 120, halfWidth: 40),
+        "aqua":    (center: 180, halfWidth: 22),
+        "blue":    (center: 225, halfWidth: 30),
+        "purple":  (center: 285, halfWidth: 30),
+        "magenta": (center: 330, halfWidth: 15),
+    ]
+
+    private func applyHSLHue(_ image: CIImage, instruction: EditInstruction) -> CIImage {
+        guard instruction.value != 0 else { return image }
+        let channel = (instruction.metadata["channel"] ?? "all").lowercased()
+        if channel == "all" || channel.isEmpty {
+            let angle = instruction.value * .pi / 180.0
+            return image.applyingFilter("CIHueAdjust", parameters: [kCIInputAngleKey: angle])
+        }
+        guard let lutData = buildChannelLUT(channel: channel, hueDelta: instruction.value, satDelta: 0, lumDelta: 0) else { return image }
+        return applyColorCube(image, lutData: lutData)
     }
 
-    private func applyHSLSaturation(_ image: CIImage, amount: Double) -> CIImage {
-        let saturation = 1.0 + (amount / 100.0)
-        return image.applyingFilter("CIColorControls", parameters: [
-            kCIInputSaturationKey: max(0.0, min(2.0, saturation))
-        ])
+    private func applyHSLSaturation(_ image: CIImage, instruction: EditInstruction) -> CIImage {
+        guard instruction.value != 0 else { return image }
+        let channel = (instruction.metadata["channel"] ?? "all").lowercased()
+        if channel == "all" || channel.isEmpty {
+            let saturation = 1.0 + (instruction.value / 100.0)
+            return image.applyingFilter("CIColorControls", parameters: [
+                kCIInputSaturationKey: max(0.0, min(2.0, saturation))
+            ])
+        }
+        guard let lutData = buildChannelLUT(channel: channel, hueDelta: 0, satDelta: instruction.value, lumDelta: 0) else { return image }
+        return applyColorCube(image, lutData: lutData)
     }
 
-    private func applyHSLLuminance(_ image: CIImage, amount: Double) -> CIImage {
-        let brightness = (amount / 100.0) * 0.2
-        return image.applyingFilter("CIColorControls", parameters: [
-            kCIInputBrightnessKey: brightness
-        ])
+    private func applyHSLLuminance(_ image: CIImage, instruction: EditInstruction) -> CIImage {
+        guard instruction.value != 0 else { return image }
+        let channel = (instruction.metadata["channel"] ?? "all").lowercased()
+        if channel == "all" || channel.isEmpty {
+            let brightness = (instruction.value / 100.0) * 0.2
+            return image.applyingFilter("CIColorControls", parameters: [
+                kCIInputBrightnessKey: brightness
+            ])
+        }
+        guard let lutData = buildChannelLUT(channel: channel, hueDelta: 0, satDelta: 0, lumDelta: instruction.value) else { return image }
+        return applyColorCube(image, lutData: lutData)
+    }
+
+    // MARK: - HSL Per-Channel LUT (CIColorCube)
+
+    /// Build a 32³ RGBA float32 CIColorCube that applies hue/sat/lum adjustments
+    /// only to pixels whose hue falls within the named channel's range.
+    private func buildChannelLUT(channel: String, hueDelta: Double, satDelta: Double, lumDelta: Double) -> Data? {
+        guard let (center, halfWidth) = Self.channelHueRanges[channel] else { return nil }
+        let dim = 32
+        var cubeData = [Float](repeating: 0, count: dim * dim * dim * 4)
+        let step = 1.0 / Double(dim - 1)
+
+        // CIColorCube layout: red varies fastest (innermost), blue slowest (outermost).
+        for bi in 0..<dim {
+            for gi in 0..<dim {
+                for ri in 0..<dim {
+                    let r = Double(ri) * step
+                    let g = Double(gi) * step
+                    let b = Double(bi) * step
+                    let (h, s, l) = rgbToHsl(r: r, g: g, b: b)
+                    let weight = hueChannelWeight(hDeg: h * 360.0, center: center, halfWidth: halfWidth)
+
+                    let fr: Float
+                    let fg: Float
+                    let fb: Float
+
+                    if weight > 0 {
+                        var newH = h + hueDelta / 360.0
+                        newH = newH.truncatingRemainder(dividingBy: 1.0)
+                        if newH < 0 { newH += 1.0 }
+                        let newS = max(0, min(1, s + satDelta / 100.0))
+                        let newL = max(0, min(1, l + (lumDelta / 100.0) * 0.5))
+                        let (nr, ng, nb) = hslToRgb(h: newH, s: newS, l: newL)
+                        fr = Float(r + (nr - r) * weight)
+                        fg = Float(g + (ng - g) * weight)
+                        fb = Float(b + (nb - b) * weight)
+                    } else {
+                        fr = Float(r)
+                        fg = Float(g)
+                        fb = Float(b)
+                    }
+
+                    let index = (bi * dim * dim + gi * dim + ri) * 4
+                    cubeData[index]     = fr
+                    cubeData[index + 1] = fg
+                    cubeData[index + 2] = fb
+                    cubeData[index + 3] = 1.0
+                }
+            }
+        }
+
+        return Data(bytes: cubeData, count: cubeData.count * MemoryLayout<Float>.size)
+    }
+
+    /// Returns a blend weight [0, 1] for how strongly to apply the adjustment at `hDeg`.
+    /// Uses cosine feathering over the outer 40% of the channel's half-width.
+    private func hueChannelWeight(hDeg: Double, center: Double, halfWidth: Double) -> Double {
+        var diff = abs(hDeg - center)
+        if diff > 180 { diff = 360 - diff }   // handle 0°/360° wraparound
+        let feather = halfWidth * 0.4
+        let innerWidth = halfWidth - feather
+        if diff <= innerWidth { return 1.0 }
+        if diff <= halfWidth {
+            let t = (diff - innerWidth) / feather
+            return 0.5 * (1 + cos(t * .pi))
+        }
+        return 0.0
+    }
+
+    private func applyColorCube(_ image: CIImage, lutData: Data) -> CIImage {
+        guard let filter = CIFilter(name: "CIColorCube") else { return image }
+        filter.setValue(32, forKey: "inputCubeDimension")
+        filter.setValue(lutData as NSData, forKey: "inputCubeData")
+        filter.setValue(image, forKey: kCIInputImageKey)
+        return filter.outputImage ?? image
+    }
+
+    // MARK: - RGB ↔ HSL Conversion
+
+    private func rgbToHsl(r: Double, g: Double, b: Double) -> (h: Double, s: Double, l: Double) {
+        let maxV = max(r, g, b)
+        let minV = min(r, g, b)
+        let delta = maxV - minV
+        let l = (maxV + minV) / 2.0
+        guard delta > 0 else { return (0, 0, l) }
+        let s = delta / (1.0 - abs(2 * l - 1))
+        let h: Double
+        switch maxV {
+        case r:
+            let raw = (g - b) / delta
+            let normalized = (raw.truncatingRemainder(dividingBy: 6) + 6).truncatingRemainder(dividingBy: 6)
+            h = normalized / 6.0
+        case g:
+            h = ((b - r) / delta + 2) / 6.0
+        default:
+            h = ((r - g) / delta + 4) / 6.0
+        }
+        return (h, s, l)
+    }
+
+    private func hslToRgb(h: Double, s: Double, l: Double) -> (r: Double, g: Double, b: Double) {
+        guard s > 0 else { return (l, l, l) }
+        let c = (1 - abs(2 * l - 1)) * s
+        let x = c * (1 - abs((h * 6).truncatingRemainder(dividingBy: 2) - 1))
+        let m = l - c / 2
+        let (r1, g1, b1): (Double, Double, Double)
+        switch Int(h * 6) % 6 {
+        case 0: (r1, g1, b1) = (c, x, 0)
+        case 1: (r1, g1, b1) = (x, c, 0)
+        case 2: (r1, g1, b1) = (0, c, x)
+        case 3: (r1, g1, b1) = (0, x, c)
+        case 4: (r1, g1, b1) = (x, 0, c)
+        default: (r1, g1, b1) = (c, 0, x)
+        }
+        return (r1 + m, g1 + m, b1 + m)
     }
 
     // MARK: - Tone Curve
