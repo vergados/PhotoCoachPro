@@ -11,6 +11,8 @@
 		3DC306C3198346FE055162FD /* DPIUpscalingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 021088A5E10E7A79AD100A3E /* DPIUpscalingView.swift */; };
 		3F0DC77E545A489CFD76A5DA /* PanoramaStitchingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D695E483BE7C3C751AB63B /* PanoramaStitchingView.swift */; };
 		41E6DF1E28F36EA42AEF7B17 /* QuickMetricsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F6B9CAA836837492373E594 /* QuickMetricsView.swift */; };
+		9FC4EC9EBA7E11B3CE3719B6 /* CritiqueResultTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BA5B880694057C1C80F766A /* CritiqueResultTests.swift */; };
+		A4AF9E29BFFBEA5F35FCB139 /* ExportSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7BF6B62DEAEF3CF9905DDBC /* ExportSettingsTests.swift */; };
 		AA0001000000000000000001 /* PhotoCoachProApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1001000000000000000001 /* PhotoCoachProApp.swift */; };
 		AA0001000000000000000002 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1001000000000000000002 /* AppState.swift */; };
 		AA0001000000000000000003 /* EditInstruction.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1001000000000000000003 /* EditInstruction.swift */; };
@@ -35,7 +37,6 @@
 		AA0001000000000000000022 /* MaskRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1001000000000000000022 /* MaskRecord.swift */; };
 		AA0001000000000000000023 /* RAWSettingsRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1001000000000000000023 /* RAWSettingsRecord.swift */; };
 		AA0001000000000000000024 /* PhotoRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1001000000000000000024 /* PhotoRecord.swift */; };
-		AA0001000000000000000082 /* SkillHistoryRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1001000000000000000082 /* SkillHistoryRecord.swift */; };
 		AA0001000000000000000025 /* EditHistoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1001000000000000000025 /* EditHistoryManager.swift */; };
 		AA0001000000000000000026 /* LocalDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1001000000000000000026 /* LocalDatabase.swift */; };
 		AA0001000000000000000027 /* PrivacySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1001000000000000000027 /* PrivacySettings.swift */; };
@@ -93,17 +94,37 @@
 		AA0001000000000000000079 /* BatchExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1001000000000000000079 /* BatchExportView.swift */; };
 		AA0001000000000000000080 /* ShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1001000000000000000080 /* ShareView.swift */; };
 		AA0001000000000000000081 /* PrintPreparationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1001000000000000000081 /* PrintPreparationView.swift */; };
+		AA0001000000000000000082 /* SkillHistoryRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1001000000000000000082 /* SkillHistoryRecord.swift */; };
+		AA0001000000000000000083 /* SkillDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1001000000000000000083 /* SkillDashboardView.swift */; };
+		AA0001000000000000000084 /* WeeklyFocusPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1001000000000000000084 /* WeeklyFocusPlanView.swift */; };
+		AA0001000000000000000085 /* MaskPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1001000000000000000085 /* MaskPanelView.swift */; };
 		AA0002000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA2001000000000000000001 /* Assets.xcassets */; };
 		AA0002000000000000000002 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA2001000000000000000002 /* Preview Assets.xcassets */; };
+		BDFC8FA6F3BEE3EF7E5FA3FF /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D0C9E0FDE0656B536AB402A8 /* Cocoa.framework */; };
 		D2191E3DB2C2C63CE2B1D60E /* PanoramaStitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AFFD671EDC5AD020124995B /* PanoramaStitcher.swift */; };
+		D250E43D6EF3566BC6A5FBA8 /* SkillHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AAD3EA1A98A0CEB7DA3E63D /* SkillHistoryTests.swift */; };
+		D42FC0133908F3A7654A8C01 /* WeeklyFocusPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A8160DAEFF75DF1F8ADC6C /* WeeklyFocusPlanTests.swift */; };
 		DC25739E1A07FB31613CC3F5 /* DPIUpscaler.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91DF64CD798A6956A3087CC /* DPIUpscaler.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		2387B22D84A091086797059E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA0000000000000000000010 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA0000000000000000000006;
+			remoteInfo = PhotoCoachPro;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		021088A5E10E7A79AD100A3E /* DPIUpscalingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DPIUpscalingView.swift; path = Upscaling/DPIUpscalingView.swift; sourceTree = "<group>"; };
+		19522C62C7F4B0E48ACE77D1 /* PhotoCoachProTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PhotoCoachProTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2F6B9CAA836837492373E594 /* QuickMetricsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuickMetricsView.swift; sourceTree = "<group>"; };
 		31FE68ADAE92F40436ECA91E /* QuickMetricsAnalyzer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuickMetricsAnalyzer.swift; sourceTree = "<group>"; };
 		7AFFD671EDC5AD020124995B /* PanoramaStitcher.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PanoramaStitcher.swift; path = Panorama/PanoramaStitcher.swift; sourceTree = "<group>"; };
+		8AAD3EA1A98A0CEB7DA3E63D /* SkillHistoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkillHistoryTests.swift; sourceTree = "<group>"; };
+		8BA5B880694057C1C80F766A /* CritiqueResultTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CritiqueResultTests.swift; sourceTree = "<group>"; };
 		AA0000000000000000000001 /* PhotoCoachPro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhotoCoachPro.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA1001000000000000000001 /* PhotoCoachProApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoCoachProApp.swift; sourceTree = "<group>"; };
 		AA1001000000000000000002 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
@@ -129,7 +150,6 @@
 		AA1001000000000000000022 /* MaskRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaskRecord.swift; sourceTree = "<group>"; };
 		AA1001000000000000000023 /* RAWSettingsRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RAWSettingsRecord.swift; sourceTree = "<group>"; };
 		AA1001000000000000000024 /* PhotoRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoRecord.swift; sourceTree = "<group>"; };
-		AA1001000000000000000082 /* SkillHistoryRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillHistoryRecord.swift; sourceTree = "<group>"; };
 		AA1001000000000000000025 /* EditHistoryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditHistoryManager.swift; sourceTree = "<group>"; };
 		AA1001000000000000000026 /* LocalDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDatabase.swift; sourceTree = "<group>"; };
 		AA1001000000000000000027 /* PrivacySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacySettings.swift; sourceTree = "<group>"; };
@@ -187,14 +207,29 @@
 		AA1001000000000000000079 /* BatchExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchExportView.swift; sourceTree = "<group>"; };
 		AA1001000000000000000080 /* ShareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareView.swift; sourceTree = "<group>"; };
 		AA1001000000000000000081 /* PrintPreparationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrintPreparationView.swift; sourceTree = "<group>"; };
+		AA1001000000000000000082 /* SkillHistoryRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillHistoryRecord.swift; sourceTree = "<group>"; };
+		AA1001000000000000000083 /* SkillDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillDashboardView.swift; sourceTree = "<group>"; };
+		AA1001000000000000000084 /* WeeklyFocusPlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyFocusPlanView.swift; sourceTree = "<group>"; };
+		AA1001000000000000000085 /* MaskPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaskPanelView.swift; sourceTree = "<group>"; };
 		AA2001000000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA2001000000000000000002 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		AA3001000000000000000001 /* PhotoCoachPro.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PhotoCoachPro.entitlements; sourceTree = "<group>"; };
+		B5A8160DAEFF75DF1F8ADC6C /* WeeklyFocusPlanTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyFocusPlanTests.swift; sourceTree = "<group>"; };
 		C7D695E483BE7C3C751AB63B /* PanoramaStitchingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PanoramaStitchingView.swift; path = Panorama/PanoramaStitchingView.swift; sourceTree = "<group>"; };
+		D0C9E0FDE0656B536AB402A8 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
+		D7BF6B62DEAEF3CF9905DDBC /* ExportSettingsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExportSettingsTests.swift; sourceTree = "<group>"; };
 		E91DF64CD798A6956A3087CC /* DPIUpscaler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DPIUpscaler.swift; path = Upscaling/DPIUpscaler.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		8DE076E269696B166FE2003B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BDFC8FA6F3BEE3EF7E5FA3FF /* Cocoa.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AA0000000000000000000002 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -221,11 +256,33 @@
 			name = Panorama;
 			sourceTree = "<group>";
 		};
+		21CF04464D8763A21899DD6F /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				BDC16A69D1182614DEFE89E4 /* OS X */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		5FA6CB372029EDD4C936A155 /* PhotoCoachProTests */ = {
+			isa = PBXGroup;
+			children = (
+				D7BF6B62DEAEF3CF9905DDBC /* ExportSettingsTests.swift */,
+				8BA5B880694057C1C80F766A /* CritiqueResultTests.swift */,
+				B5A8160DAEFF75DF1F8ADC6C /* WeeklyFocusPlanTests.swift */,
+				8AAD3EA1A98A0CEB7DA3E63D /* SkillHistoryTests.swift */,
+			);
+			name = PhotoCoachProTests;
+			path = PhotoCoachProTests;
+			sourceTree = "<group>";
+		};
 		AA0000000000000000000003 = {
 			isa = PBXGroup;
 			children = (
 				AA0000000000000000000004 /* PhotoCoachPro */,
 				AA0000000000000000000005 /* Products */,
+				21CF04464D8763A21899DD6F /* Frameworks */,
+				5FA6CB372029EDD4C936A155 /* PhotoCoachProTests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -251,6 +308,7 @@
 			isa = PBXGroup;
 			children = (
 				AA0000000000000000000001 /* PhotoCoachPro.app */,
+				19522C62C7F4B0E48ACE77D1 /* PhotoCoachProTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -442,6 +500,7 @@
 				AA1001000000000000000032 /* ToneCurveView.swift */,
 				AA1001000000000000000033 /* HSLMixerView.swift */,
 				AA1001000000000000000034 /* CropView.swift */,
+				AA1001000000000000000085 /* MaskPanelView.swift */,
 			);
 			path = Editor;
 			sourceTree = "<group>";
@@ -587,6 +646,8 @@
 				AA1001000000000000000055 /* CategoryBreakdownView.swift */,
 				AA1001000000000000000056 /* ImprovementActionsView.swift */,
 				2F6B9CAA836837492373E594 /* QuickMetricsView.swift */,
+				AA1001000000000000000083 /* SkillDashboardView.swift */,
+				AA1001000000000000000084 /* WeeklyFocusPlanView.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -605,6 +666,14 @@
 				7AFFD671EDC5AD020124995B /* PanoramaStitcher.swift */,
 			);
 			name = Panorama;
+			sourceTree = "<group>";
+		};
+		BDC16A69D1182614DEFE89E4 /* OS X */ = {
+			isa = PBXGroup;
+			children = (
+				D0C9E0FDE0656B536AB402A8 /* Cocoa.framework */,
+			);
+			name = "OS X";
 			sourceTree = "<group>";
 		};
 		E9D141623C4C05BFC9CD29B0 /* Upscaling */ = {
@@ -635,6 +704,24 @@
 			productReference = AA0000000000000000000001 /* PhotoCoachPro.app */;
 			productType = "com.apple.product-type.application";
 		};
+		F853CFA119958CB8DEB61E70 /* PhotoCoachProTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EADC26D501A83249FC7AB215 /* Build configuration list for PBXNativeTarget "PhotoCoachProTests" */;
+			buildPhases = (
+				C36322F185E628A17D9C8A24 /* Sources */,
+				8DE076E269696B166FE2003B /* Frameworks */,
+				54EEE0FF6CC1B93F534DA460 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				9BFC148E67B28B66693280F7 /* PBXTargetDependency */,
+			);
+			name = PhotoCoachProTests;
+			productName = PhotoCoachProTests;
+			productReference = 19522C62C7F4B0E48ACE77D1 /* PhotoCoachProTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -664,11 +751,19 @@
 			projectRoot = "";
 			targets = (
 				AA0000000000000000000006 /* PhotoCoachPro */,
+				F853CFA119958CB8DEB61E70 /* PhotoCoachProTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		54EEE0FF6CC1B93F534DA460 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AA0000000000000000000009 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -710,6 +805,9 @@
 				AA0001000000000000000023 /* RAWSettingsRecord.swift in Sources */,
 				AA0001000000000000000024 /* PhotoRecord.swift in Sources */,
 				AA0001000000000000000082 /* SkillHistoryRecord.swift in Sources */,
+				AA0001000000000000000083 /* SkillDashboardView.swift in Sources */,
+				AA0001000000000000000084 /* WeeklyFocusPlanView.swift in Sources */,
+				AA0001000000000000000085 /* MaskPanelView.swift in Sources */,
 				AA0001000000000000000025 /* EditHistoryManager.swift in Sources */,
 				AA0001000000000000000026 /* LocalDatabase.swift in Sources */,
 				AA0001000000000000000027 /* PrivacySettings.swift in Sources */,
@@ -776,9 +874,43 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C36322F185E628A17D9C8A24 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A4AF9E29BFFBEA5F35FCB139 /* ExportSettingsTests.swift in Sources */,
+				9FC4EC9EBA7E11B3CE3719B6 /* CritiqueResultTests.swift in Sources */,
+				D42FC0133908F3A7654A8C01 /* WeeklyFocusPlanTests.swift in Sources */,
+				D250E43D6EF3566BC6A5FBA8 /* SkillHistoryTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		9BFC148E67B28B66693280F7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = PhotoCoachPro;
+			target = AA0000000000000000000006 /* PhotoCoachPro */;
+			targetProxy = 2387B22D84A091086797059E /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		252609783B72FAD5C9A32811 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_MODULE_NAME = PhotoCoachProTests;
+				PRODUCT_NAME = PhotoCoachProTests;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PhotoCoachPro.app/Contents/MacOS/PhotoCoachPro";
+			};
+			name = Debug;
+		};
 		AA0000000000000000000012 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -977,6 +1109,20 @@
 			};
 			name = Release;
 		};
+		C3DD5E9E6707D0A3F770B9B4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_MODULE_NAME = PhotoCoachProTests;
+				PRODUCT_NAME = PhotoCoachProTests;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PhotoCoachPro.app/Contents/MacOS/PhotoCoachPro";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -994,6 +1140,15 @@
 			buildConfigurations = (
 				AA0000000000000000000012 /* Debug */,
 				AA0000000000000000000013 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		EADC26D501A83249FC7AB215 /* Build configuration list for PBXNativeTarget "PhotoCoachProTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C3DD5E9E6707D0A3F770B9B4 /* Release */,
+				252609783B72FAD5C9A32811 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -275,7 +275,8 @@ struct SkillHistory: Codable, Identifiable, Equatable {
         }
 
         let sessionsInPeriod = sessions(from: startDate, to: Date())
-        let milestonesInPeriod = milestones.filter { $0.achievedAt >= startDate }
+        let now = Date()
+        let milestonesInPeriod = milestones.filter { $0.achievedAt >= startDate && $0.achievedAt <= now }
 
         return ProgressReport(
             period: days,

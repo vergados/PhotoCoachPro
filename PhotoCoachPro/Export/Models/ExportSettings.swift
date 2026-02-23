@@ -120,7 +120,7 @@ struct ExportSettings: Codable, Identifiable, Equatable {
             case .sRGB: return CGColorSpace(name: CGColorSpace.sRGB)
             case .displayP3: return CGColorSpace(name: CGColorSpace.displayP3)
             case .adobeRGB: return CGColorSpace(name: CGColorSpace.adobeRGB1998)
-            case .proPhotoRGB: return CGColorSpace(name: CGColorSpace.genericRGBLinear)
+            case .proPhotoRGB: return CGColorSpace(name: CGColorSpace.itur_2020)
             }
         }
 
@@ -147,7 +147,7 @@ struct ExportSettings: Codable, Identifiable, Equatable {
             switch self {
             case .original: return nil
             case .large: return 3840
-            case .medium: return 2560
+            case .medium: return 2048
             case .small: return 1920
             case .custom: return nil
             }
@@ -157,7 +157,7 @@ struct ExportSettings: Codable, Identifiable, Equatable {
             switch self {
             case .original: return "Full resolution"
             case .large: return "4K (3840px)"
-            case .medium: return "2K (2560px)"
+            case .medium: return "2K (2048px)"
             case .small: return "1080p (1920px)"
             case .custom: return "Specify dimensions"
             }
@@ -336,6 +336,7 @@ struct ExportJob: Identifiable, Equatable {
 
     mutating func cancel() {
         status = .cancelled
+        progress = 0.0
         endTime = Date()
     }
 }
