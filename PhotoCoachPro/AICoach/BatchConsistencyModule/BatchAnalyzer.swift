@@ -72,17 +72,14 @@ actor BatchAnalyzer {
         let variance = brightnesses.map { pow($0 - mean, 2) }.reduce(0, +) / Double(brightnesses.count)
         let stdDev = sqrt(variance)
 
-        // Score based on standard deviation (lower = more consistent)
-        let score: Double
-        if stdDev < 0.05 {
-            score = 1.0
-        } else if stdDev < 0.10 {
-            score = 0.8
-        } else if stdDev < 0.15 {
-            score = 0.6
-        } else {
-            score = 0.3
-        }
+        // Smooth decay anchored on variance (stdDev²): 0.0000→1.0, 0.0025→0.90, 0.0100→0.65, 0.0400→0.35, 0.1225+→0.20
+        let score = smoothConsistencyScore(variance, anchors: [
+            (variance: 0.0000, score: 1.00),
+            (variance: 0.0025, score: 0.90),
+            (variance: 0.0100, score: 0.65),
+            (variance: 0.0400, score: 0.35),
+            (variance: 0.1225, score: 0.20)
+        ])
 
         let notes: String
         if score > 0.8 {
@@ -104,10 +101,15 @@ actor BatchAnalyzer {
 
         guard let outputImage = filter.outputImage else { return 0.5 }
 
-        var bitmap = [UInt8](repeating: 0, count: 4)
-        context.render(outputImage, toBitmap: &bitmap, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1), format: .RGBA8, colorSpace: nil)
+        var bitmap = [Float](repeating: 0, count: 4)
+        context.render(outputImage,
+                       toBitmap: &bitmap,
+                       rowBytes: 4 * MemoryLayout<Float>.size,
+                       bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+                       format: .RGBAf,
+                       colorSpace: nil)
 
-        return (Double(bitmap[0]) + Double(bitmap[1]) + Double(bitmap[2])) / (3.0 * 255.0)
+        return Double(0.2126 * bitmap[0] + 0.7152 * bitmap[1] + 0.0722 * bitmap[2])
     }
 
     // MARK: - White Balance Consistency
@@ -131,16 +133,14 @@ actor BatchAnalyzer {
 
         let avgVariance = (rVariance + gVariance + bVariance) / 3.0
 
-        let score: Double
-        if avgVariance < 0.01 {
-            score = 1.0
-        } else if avgVariance < 0.03 {
-            score = 0.8
-        } else if avgVariance < 0.05 {
-            score = 0.6
-        } else {
-            score = 0.3
-        }
+        // Smooth decay: 0.000→1.0, 0.010→0.90, 0.030→0.65, 0.060→0.40, 0.100+→0.20
+        let score = smoothConsistencyScore(avgVariance, anchors: [
+            (variance: 0.000, score: 1.00),
+            (variance: 0.010, score: 0.90),
+            (variance: 0.030, score: 0.65),
+            (variance: 0.060, score: 0.40),
+            (variance: 0.100, score: 0.20)
+        ])
 
         let notes: String
         if score > 0.8 {
@@ -183,27 +183,52 @@ actor BatchAnalyzer {
 
         let variance = calculateVariance(saturations)
 
-        let score: Double
-        if variance < 0.02 {
-            score = 1.0
-        } else if variance < 0.05 {
-            score = 0.8
-        } else if variance < 0.10 {
-            score = 0.6
-        } else {
-            score = 0.3
-        }
+        // Smooth decay: 0.00→1.0, 0.02→0.90, 0.05→0.70, 0.10→0.45, 0.20+→0.20
+        let score = smoothConsistencyScore(variance, anchors: [
+            (variance: 0.00, score: 1.00),
+            (variance: 0.02, score: 0.90),
+            (variance: 0.05, score: 0.70),
+            (variance: 0.10, score: 0.45),
+            (variance: 0.20, score: 0.20)
+        ])
 
         let notes = score > 0.7 ? "Color saturation is consistent." : "Color saturation varies. Consider normalizing vibrance."
 
         return ConsistencyReport.MetricScore(score: score, variance: variance, notes: notes)
     }
 
+    /// Computes mean HSV saturation by sampling a 32×32 bitmap and averaging
+    /// per-pixel S = (max−min)/max values — not the saturation of the average color.
     private func calculateAverageSaturation(_ image: CIImage) -> Double {
-        let cast = calculateColorCast(image)
-        let maxC = max(cast.r, cast.g, cast.b)
-        let minC = min(cast.r, cast.g, cast.b)
-        return maxC > 0 ? (maxC - minC) / maxC : 0
+        let sampleSize = 32
+        let ext = image.extent
+        guard ext.width > 0, ext.height > 0 else { return 0.5 }
+
+        let normalized = image.transformed(
+            by: CGAffineTransform(translationX: -ext.minX, y: -ext.minY)
+                .concatenating(CGAffineTransform(scaleX: CGFloat(sampleSize) / ext.width,
+                                                 y: CGFloat(sampleSize) / ext.height))
+        )
+
+        let n = sampleSize * sampleSize
+        var pixels = [UInt8](repeating: 0, count: n * 4)
+        context.render(normalized,
+                       toBitmap: &pixels,
+                       rowBytes: sampleSize * 4,
+                       bounds: CGRect(x: 0, y: 0, width: sampleSize, height: sampleSize),
+                       format: .RGBA8,
+                       colorSpace: nil)
+
+        var total: Double = 0
+        for i in 0..<n {
+            let r = Double(pixels[i * 4])     / 255.0
+            let g = Double(pixels[i * 4 + 1]) / 255.0
+            let b = Double(pixels[i * 4 + 2]) / 255.0
+            let maxC = max(r, g, b)
+            let minC = min(r, g, b)
+            total += maxC > 0 ? (maxC - minC) / maxC : 0
+        }
+        return total / Double(n)
     }
 
     // MARK: - Sharpness Consistency
@@ -230,7 +255,14 @@ actor BatchAnalyzer {
 
         let variance = calculateVariance(sharpnessValues)
 
-        let score = variance < 0.02 ? 1.0 : (variance < 0.05 ? 0.7 : 0.4)
+        // Smooth decay: 0.000→1.0, 0.020→0.88, 0.040→0.65, 0.065→0.40, 0.120+→0.20
+        let score = smoothConsistencyScore(variance, anchors: [
+            (variance: 0.000, score: 1.00),
+            (variance: 0.020, score: 0.88),
+            (variance: 0.040, score: 0.65),
+            (variance: 0.065, score: 0.40),
+            (variance: 0.120, score: 0.20)
+        ])
         let notes = score > 0.7 ? "Sharpness is consistent." : "Sharpness varies across photos."
 
         return ConsistencyReport.MetricScore(score: score, variance: variance, notes: notes)
@@ -239,13 +271,104 @@ actor BatchAnalyzer {
     // MARK: - Composition Consistency
 
     private func analyzeCompositionConsistency(images: [(image: CIImage, photoID: UUID)]) -> ConsistencyReport.MetricScore {
-        // Simplified: assume moderate consistency for composition
-        // Real implementation would analyze framing, subject placement, etc.
-        return ConsistencyReport.MetricScore(
-            score: 0.7,
-            variance: 0.05,
-            notes: "Composition consistency analysis requires manual review."
+        guard !images.isEmpty else {
+            return ConsistencyReport.MetricScore(score: 1.0, variance: 0, notes: "No images to compare.")
+        }
+
+        var centroids: [(x: Double, y: Double)] = []
+        var aspectRatios: [Double] = []
+
+        for item in images {
+            centroids.append(brightnessWeightedCentroid(item.image))
+            let ext = item.image.extent
+            if ext.height > 0 {
+                aspectRatios.append(Double(ext.width / ext.height))
+            }
+        }
+
+        // Variance in centroid positions captures subject placement inconsistency
+        let xVariance = calculateVariance(centroids.map { $0.x })
+        let yVariance = calculateVariance(centroids.map { $0.y })
+        let centroidVariance = (xVariance + yVariance) / 2.0
+
+        // Detect portrait/landscape mixing (aspect ratio spread)
+        let arVariance = calculateVariance(aspectRatios)
+        let hasOrientationMix = arVariance > 0.5
+
+        // Score: low centroid variance = consistent framing
+        // Smooth decay: 0.000→1.0, 0.010→0.85, 0.030→0.65, 0.060→0.40, 0.120+→0.20
+        let rawScore = smoothConsistencyScore(centroidVariance, anchors: [
+            (variance: 0.000, score: 1.00),
+            (variance: 0.010, score: 0.85),
+            (variance: 0.030, score: 0.65),
+            (variance: 0.060, score: 0.40),
+            (variance: 0.120, score: 0.20)
+        ])
+        let score = hasOrientationMix ? max(0.2, rawScore - 0.2) : rawScore
+
+        let notes: String
+        if score > 0.8 {
+            notes = "Subject placement and framing are consistent across photos."
+        } else if hasOrientationMix {
+            notes = "Mixed portrait and landscape orientations detected in batch."
+        } else if centroidVariance > 0.06 {
+            notes = "Subject placement varies significantly — framing differs across photos."
+        } else {
+            notes = "Some variation in subject placement and framing."
+        }
+
+        return ConsistencyReport.MetricScore(score: score, variance: centroidVariance, notes: notes)
+    }
+
+    /// Returns the brightness-weighted centroid of an image as normalized (x, y) in [0,1].
+    /// Uses CIAreaAverage on each image quadrant; (0,0) = top-left, (1,1) = bottom-right.
+    private func brightnessWeightedCentroid(_ image: CIImage) -> (x: Double, y: Double) {
+        let ext = image.extent
+        guard ext.width > 0, ext.height > 0 else { return (0.5, 0.5) }
+
+        let hw = ext.width / 2
+        let hh = ext.height / 2
+
+        // CoreImage Y-axis: bottom = minY, top = maxY
+        let tl = CGRect(x: ext.minX,      y: ext.minY + hh, width: hw, height: hh)
+        let tr = CGRect(x: ext.minX + hw, y: ext.minY + hh, width: hw, height: hh)
+        let bl = CGRect(x: ext.minX,      y: ext.minY,      width: hw, height: hh)
+        let br = CGRect(x: ext.minX + hw, y: ext.minY,      width: hw, height: hh)
+
+        let tlB = quadrantBrightness(image, rect: tl)
+        let trB = quadrantBrightness(image, rect: tr)
+        let blB = quadrantBrightness(image, rect: bl)
+        let brB = quadrantBrightness(image, rect: br)
+
+        let total = tlB + trB + blB + brB
+        guard total > 0 else { return (0.5, 0.5) }
+
+        // cx > 0.5 means right half is brighter (subject leans right)
+        let cx = (trB + brB) / total
+        // cy: 0 = top, 1 = bottom — convention (0,0) = top-left, (1,1) = bottom-right.
+        // Bottom quadrants bright → cy near 1 (subject low). Top quadrants bright → cy near 0 (subject high).
+        let cy = (blB + brB) / total
+
+        return (x: cx, y: cy)
+    }
+
+    private func quadrantBrightness(_ image: CIImage, rect: CGRect) -> Double {
+        let cropped = image.cropped(to: rect)
+        guard let avgOutput = CIFilter(name: "CIAreaAverage", parameters: [
+            kCIInputImageKey: cropped,
+            kCIInputExtentKey: CIVector(cgRect: rect)
+        ])?.outputImage else { return 0 }
+
+        var bitmap = [Float](repeating: 0, count: 4)
+        context.render(
+            avgOutput,
+            toBitmap: &bitmap,
+            rowBytes: 4 * MemoryLayout<Float>.size,
+            bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+            format: .RGBAf,
+            colorSpace: nil
         )
+        return Double(0.2126 * bitmap[0] + 0.7152 * bitmap[1] + 0.0722 * bitmap[2])
     }
 
     // MARK: - Helpers
@@ -256,6 +379,22 @@ actor BatchAnalyzer {
         let mean = values.reduce(0, +) / Double(values.count)
         let squaredDiffs = values.map { pow($0 - mean, 2) }
         return squaredDiffs.reduce(0, +) / Double(values.count)
+    }
+
+    /// Piecewise-linear interpolation through (variance, score) anchors — no cliff edges.
+    /// Anchors must be sorted ascending by variance.
+    private func smoothConsistencyScore(_ variance: Double,
+                                        anchors: [(variance: Double, score: Double)]) -> Double {
+        if variance <= anchors.first!.variance { return anchors.first!.score }
+        if variance >= anchors.last!.variance  { return anchors.last!.score }
+        for i in 0..<anchors.count - 1 {
+            let lo = anchors[i], hi = anchors[i + 1]
+            if variance < hi.variance {
+                let t = (variance - lo.variance) / (hi.variance - lo.variance)
+                return lo.score + t * (hi.score - lo.score)
+            }
+        }
+        return anchors.last!.score
     }
 
     private func calculateOverallConsistency(metrics: ConsistencyReport.ConsistencyMetrics) -> Double {
@@ -338,6 +477,50 @@ actor BatchAnalyzer {
                     targetValue: 6500,
                     applyTo: .all
                 )
+            ))
+        }
+
+        // Color consistency
+        if metrics.colorConsistency.score < 0.7 {
+            recommendations.append(ConsistencyReport.BatchRecommendation(
+                category: "Color",
+                issue: "Inconsistent color saturation across batch",
+                suggestion: "Normalize vibrance and saturation to unify the look",
+                affectedPhotos: images.map { $0.photoID },
+                priority: .medium,
+                batchCorrection: ConsistencyReport.BatchCorrection(
+                    type: .vibrance,
+                    targetValue: 0.0,
+                    applyTo: .outliers
+                )
+            ))
+        }
+
+        // Sharpness consistency
+        if metrics.sharpnessConsistency.score < 0.7 {
+            recommendations.append(ConsistencyReport.BatchRecommendation(
+                category: "Sharpness",
+                issue: "Inconsistent sharpness across batch",
+                suggestion: "Apply uniform sharpening to soft photos to match the set",
+                affectedPhotos: images.map { $0.photoID },
+                priority: .medium,
+                batchCorrection: ConsistencyReport.BatchCorrection(
+                    type: .sharpness,
+                    targetValue: 0.5,
+                    applyTo: .outliers
+                )
+            ))
+        }
+
+        // Composition consistency
+        if metrics.compositionConsistency.score < 0.7 {
+            recommendations.append(ConsistencyReport.BatchRecommendation(
+                category: "Composition",
+                issue: "Inconsistent framing and subject placement",
+                suggestion: "Review framing and crop photos to a consistent aspect ratio and placement",
+                affectedPhotos: images.map { $0.photoID },
+                priority: .low,
+                batchCorrection: nil
             ))
         }
 

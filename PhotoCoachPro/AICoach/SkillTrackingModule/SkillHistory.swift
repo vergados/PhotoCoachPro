@@ -255,12 +255,13 @@ struct SkillHistory: Codable, Identifiable, Equatable {
 
     /// Calculate progress over time period
     func progressReport(days: Int) -> ProgressReport {
-        let startDate = Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? Date()
+        let now = Date()
+        let startDate = Calendar.current.date(byAdding: .day, value: -days, to: now) ?? now
 
         var categoryProgress: [SkillMetric.SkillCategory: Double] = [:]
 
         for (category, metric) in metrics {
-            let measurements = metric.measurements(from: startDate, to: Date())
+            let measurements = metric.measurements(from: startDate, to: now)
             guard measurements.count >= 2 else {
                 categoryProgress[category] = 0
                 continue
@@ -274,8 +275,7 @@ struct SkillHistory: Codable, Identifiable, Equatable {
             }
         }
 
-        let sessionsInPeriod = sessions(from: startDate, to: Date())
-        let now = Date()
+        let sessionsInPeriod = sessions(from: startDate, to: now)
         let milestonesInPeriod = milestones.filter { $0.achievedAt >= startDate && $0.achievedAt <= now }
 
         return ProgressReport(

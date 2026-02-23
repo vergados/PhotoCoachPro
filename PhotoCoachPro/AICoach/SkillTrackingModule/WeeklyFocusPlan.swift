@@ -105,7 +105,7 @@ struct WeeklyFocusPlan: Codable, Identifiable, Equatable {
             self.targetScore = targetScore
             self.currentScore = currentScore
             self.description = description
-            self.achieved = currentScore >= targetScore
+            self.achieved = targetScore > 0 && currentScore >= targetScore
         }
 
         var progress: Double {
@@ -257,7 +257,7 @@ struct WeeklyFocusPlan: Codable, Identifiable, Equatable {
 
     private static func exercisesForCategory(_ category: SkillMetric.SkillCategory, difficulty: Exercise.Difficulty, count: Int) -> [Exercise] {
         let allExercises = exerciseLibrary[category] ?? []
-        let filtered = allExercises.filter { $0.difficulty == difficulty || difficulty == .intermediate }
+        let filtered = allExercises.filter { $0.difficulty == difficulty || $0.difficulty == .intermediate }
         return Array(filtered.prefix(count))
     }
 

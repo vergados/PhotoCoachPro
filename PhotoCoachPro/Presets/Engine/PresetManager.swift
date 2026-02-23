@@ -197,21 +197,24 @@ actor PresetManager {
             return imported
         }
 
-        // Try collection
+        // Try collection — save every preset in the collection, return the first
         if let collection = try? PresetCollection.importFromJSON(data) {
-            guard let first = collection.presets.first else {
+            guard !collection.presets.isEmpty else {
                 throw PresetError.importFailed
             }
 
-            var imported = first
-            imported.id = UUID()
-            imported.isBuiltIn = false
-            imported.createdAt = Date()
-            imported.modifiedAt = Date()
-            imported.usageCount = 0
-
-            try await save(imported)
-            return imported
+            var first: Preset?
+            for preset in collection.presets {
+                var imported = preset
+                imported.id = UUID()
+                imported.isBuiltIn = false
+                imported.createdAt = Date()
+                imported.modifiedAt = Date()
+                imported.usageCount = 0
+                try await save(imported)
+                if first == nil { first = imported }
+            }
+            return first!
         }
 
         throw PresetError.importFailed

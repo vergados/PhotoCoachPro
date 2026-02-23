@@ -135,8 +135,9 @@ struct SkillMetric: Codable, Identifiable, Equatable {
     }
 
     var recentMeasurements: [Measurement] {
-        let twoWeeksAgo = Calendar.current.date(byAdding: .day, value: -14, to: Date()) ?? Date()
-        return measurements.filter { $0.timestamp >= twoWeeksAgo }
+        let now = Date()
+        let twoWeeksAgo = Calendar.current.date(byAdding: .day, value: -14, to: now) ?? now
+        return measurements.filter { $0.timestamp >= twoWeeksAgo && $0.timestamp <= now }
     }
 
     var averageRecentScore: Double {
