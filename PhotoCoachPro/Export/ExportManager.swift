@@ -211,9 +211,17 @@ actor ExportManager {
             }
             try data.write(to: url, options: .atomic)
 
-        case .tiff, .heic:
-            // Phase 1: Basic JPEG/PNG only, TIFF/HEIC in Phase 2
-            throw ExportError.unsupportedFormat
+        case .tiff:
+            guard let data = await renderer.renderTIFF(from: image, colorSpace: colorSpace) else {
+                throw ExportError.renderFailed
+            }
+            try data.write(to: url, options: .atomic)
+
+        case .heic(let quality):
+            guard let data = await renderer.renderHEIC(from: image, quality: quality, colorSpace: colorSpace) else {
+                throw ExportError.renderFailed
+            }
+            try data.write(to: url, options: .atomic)
         }
     }
 }

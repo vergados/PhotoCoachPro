@@ -23,6 +23,9 @@ final class PhotoRecord {
     var fileFormat: String
     var fileSizeBytes: Int64
 
+    // User-managed flags
+    var isFavorite: Bool = false
+
     // Metadata (stored as Codable)
     @Attribute(.externalStorage) var exifSnapshotData: Data?
 
@@ -82,7 +85,16 @@ extension PhotoRecord {
     }
 
     var resolvedSourceType: PhotoSourceType {
-        sourceType == "photosLibrary" ? .photosLibrary : .fileSystem
+        switch sourceType {
+        case "photosLibrary": return .photosLibrary
+        case "fileSystem", nil: return .fileSystem
+        default:
+            // Unknown sourceType — log and default to fileSystem to avoid a crash.
+            // The ternary operator previously mapped ALL non-"photosLibrary" values
+            // (including future source types like "cloudStorage") silently to .fileSystem.
+            print("Warning: unknown sourceType '\(sourceType!)' for photo \(id), defaulting to .fileSystem")
+            return .fileSystem
+        }
     }
 
     var fileURL: URL {

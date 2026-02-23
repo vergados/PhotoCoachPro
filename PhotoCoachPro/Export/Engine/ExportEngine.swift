@@ -167,8 +167,8 @@ actor ExportEngine {
             throw ExportError.invalidColorSpace
         }
 
-        // Convert to target color space
-        guard let converted = image.matchedToWorkingSpace(from: targetColorSpace) else {
+        // Convert from working space to target color space
+        guard let converted = image.matchedFromWorkingSpace(to: targetColorSpace) else {
             throw ExportError.colorSpaceConversionFailed
         }
 
@@ -207,20 +207,64 @@ actor ExportEngine {
 
         let pixelCount = finalWidth * finalHeight
 
-        // Estimate based on format and quality
+        // Sample-encode a 256×256 tile and extrapolate to the full resolution.
+        // This captures actual image entropy so a flat-color image correctly estimates
+        // a much smaller file than a detailed landscape at the same format/quality.
+        let sampleMax = 256
+        let srcMax    = max(finalWidth, finalHeight)
+        let sampleScale = srcMax > sampleMax
+            ? Double(sampleMax) / Double(srcMax)
+            : 1.0
+        let sampleW = max(1, Int(Double(finalWidth)  * sampleScale))
+        let sampleH = max(1, Int(Double(finalHeight) * sampleScale))
+
+        // Normalize image to origin then scale to sample dimensions
+        let normalized = image.transformed(
+            by: CGAffineTransform(translationX: -extent.minX, y: -extent.minY)
+                .concatenating(CGAffineTransform(scaleX: CGFloat(sampleW) / extent.width,
+                                                 y: CGFloat(sampleH) / extent.height)))
+
+        let sRGB    = CGColorSpace(name: CGColorSpace.sRGB)!
+        let aRGB    = CGColorSpace(name: CGColorSpace.adobeRGB1998)!
+        let lossyOpt: [CIImageRepresentationOption: Any] = [
+            kCGImageDestinationLossyCompressionQuality as CIImageRepresentationOption:
+                settings.quality.compressionQuality as NSNumber
+        ]
+
+        let sampleBytes: Int? = {
+            switch settings.format {
+            case .jpeg:
+                return context.jpegRepresentation(of: normalized, colorSpace: sRGB,
+                                                  options: lossyOpt)?.count
+            case .heic:
+                if #available(iOS 11.0, macOS 10.13, *) {
+                    return context.heifRepresentation(of: normalized, format: .RGBA8,
+                                                      colorSpace: sRGB,
+                                                      options: lossyOpt)?.count
+                }
+                return nil
+            case .png:
+                return context.pngRepresentation(of: normalized, format: .RGBA8,
+                                                 colorSpace: sRGB, options: [:])?.count
+            case .tiff:
+                return context.tiffRepresentation(of: normalized, format: .RGBA16,
+                                                  colorSpace: aRGB, options: [:])?.count
+            }
+        }()
+
+        if let bytes = sampleBytes, sampleW * sampleH > 0 {
+            let bytesPerSamplePixel = Double(bytes) / Double(sampleW * sampleH)
+            return Int64(bytesPerSamplePixel * Double(pixelCount))
+        }
+
+        // Fallback when encoding fails
         switch (settings.format, settings.quality) {
-        case (.jpeg, .maximum), (.heic, .maximum):
-            return Int64(pixelCount * 3) // ~3 bytes per pixel
-        case (.jpeg, .high), (.heic, .high):
-            return Int64(pixelCount * 2) // ~2 bytes per pixel
-        case (.jpeg, .medium), (.heic, .medium):
-            return Int64(pixelCount) // ~1 byte per pixel
-        case (.jpeg, .low), (.heic, .low):
-            return Int64(pixelCount / 2) // ~0.5 bytes per pixel
-        case (.png, _):
-            return Int64(pixelCount * 4) // ~4 bytes per pixel (uncompressed)
-        case (.tiff, _):
-            return Int64(pixelCount * 12) // ~12 bytes per pixel (16-bit RGB)
+        case (.jpeg, .maximum), (.heic, .maximum): return Int64(pixelCount * 3)
+        case (.jpeg, .high),    (.heic, .high):    return Int64(pixelCount * 2)
+        case (.jpeg, .medium),  (.heic, .medium):  return Int64(pixelCount)
+        case (.jpeg, .low),     (.heic, .low):     return Int64(pixelCount / 2)
+        case (.png, _):                             return Int64(pixelCount * 4)
+        case (.tiff, _):                            return Int64(pixelCount * 12)
         }
     }
 
@@ -245,11 +289,28 @@ actor ExportEngine {
     }
 
     private func imageHasTransparency(_ image: CIImage) -> Bool {
-        // Check if image extent indicates non-opaque content
-        // Since CIImage doesn't expose format directly, we check properties
-        // Most RAW/JPEG images don't have alpha, PNG/TIFF might
-        // For now, assume no transparency unless explicitly set
-        // TODO: Check pixel buffer format if available
+        // Pixel buffer format types alone are NOT a reliable transparency indicator.
+        // kCVPixelFormatType_32BGRA is the default format for camera output and most
+        // CoreImage operations even when the image is fully opaque, causing false positives
+        // that trigger "format does not support transparency" errors on ordinary JPEG exports.
+        // Image properties are the authoritative source for meaningful alpha.
+
+        let props = image.properties
+
+        // PNG HasAlpha flag — set explicitly by encoders only when alpha is meaningful
+        if let pngProps = props["{PNG}"] as? [String: Any],
+           let hasAlpha = pngProps["HasAlpha"] as? Bool {
+            return hasAlpha
+        }
+
+        // TIFF ExtraSamples: non-empty array indicates an alpha (or other extra) channel
+        if let tiffProps = props["{TIFF}"] as? [String: Any],
+           let extraSamples = tiffProps["ExtraSamples"] as? [Int],
+           !extraSamples.isEmpty {
+            return true
+        }
+
+        // JPEG / RAW / HEIC do not carry alpha channels
         return false
     }
 

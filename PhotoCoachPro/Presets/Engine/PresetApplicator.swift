@@ -11,9 +11,11 @@ import CoreImage
 /// Applies presets to photos with various strategies
 actor PresetApplicator {
     private let editGraphEngine: EditGraphEngine
+    private let context: CIContext
 
-    init(editGraphEngine: EditGraphEngine = EditGraphEngine()) {
+    init(editGraphEngine: EditGraphEngine = EditGraphEngine(), context: CIContext = CIContext()) {
         self.editGraphEngine = editGraphEngine
+        self.context = context
     }
 
     // MARK: - Application Modes
@@ -50,13 +52,21 @@ actor PresetApplicator {
     }
 
     /// Apply preset and render preview
+    /// - Parameter existingInstructions: The photo's current edit stack. Pass an empty array
+    ///   to preview the preset in isolation. The preset is rendered ON TOP of these edits so
+    ///   the preview matches what `apply(_:to:mode:.append)` would produce.
     func applyAndRender(
         _ preset: Preset,
         to source: CIImage,
+        existingInstructions: [EditInstruction] = [],
         strength: Double = 1.0
     ) async -> CIImage {
-        let instructions = adjustedInstructions(preset.instructions, strength: strength)
-        return await editGraphEngine.render(source: source, instructions: instructions)
+        let presetInstructions = adjustedInstructions(preset.instructions, strength: strength)
+        // Combine existing edits with preset so the preview reflects the real result.
+        // Previously, only preset instructions were rendered, ignoring existing edits and
+        // producing a preview that did not match what the user would actually see applied.
+        let combined = existingInstructions + presetInstructions
+        return await editGraphEngine.render(source: source, instructions: combined)
     }
 
     /// Apply preset with before/after comparison
@@ -221,11 +231,10 @@ actor PresetApplicator {
 
         guard let outputImage = filter.outputImage else { return 0.5 }
 
-        let context = CIContext()
-        var bitmap = [UInt8](repeating: 0, count: 4)
-        context.render(outputImage, toBitmap: &bitmap, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1), format: .RGBA8, colorSpace: nil)
+        var bitmap = [Float](repeating: 0, count: 4)
+        context.render(outputImage, toBitmap: &bitmap, rowBytes: 4 * MemoryLayout<Float>.size, bounds: CGRect(x: 0, y: 0, width: 1, height: 1), format: .RGBAf, colorSpace: nil)
 
-        return (Double(bitmap[0]) + Double(bitmap[1]) + Double(bitmap[2])) / (3.0 * 255.0)
+        return Double(0.2126 * bitmap[0] + 0.7152 * bitmap[1] + 0.0722 * bitmap[2])
     }
 
     private func analyzeContrast(_ image: CIImage) async -> Double {
@@ -238,16 +247,23 @@ actor PresetApplicator {
 
         guard let outputImage = filter.outputImage else { return 0.5 }
 
-        let context = CIContext()
         var histogram = [Float](repeating: 0, count: 256)
         context.render(outputImage, toBitmap: &histogram, rowBytes: 256 * MemoryLayout<Float>.size, bounds: CGRect(x: 0, y: 0, width: 256, height: 1), format: .Rf, colorSpace: nil)
 
-        // Calculate variance as proxy for contrast
-        let mean = histogram.reduce(0, +) / Float(histogram.count)
-        let variance = histogram.map { pow($0 - mean, 2) }.reduce(0, +) / Float(histogram.count)
-
-        // Normalize to 0-1 range
-        return Double(min(1.0, sqrt(variance) / 10.0))
+        // Frequency-weighted luminance standard deviation
+        var meanL: Double = 0
+        var totalFreq: Double = 0
+        for i in 0..<256 {
+            meanL += Double(histogram[i]) * (Double(i) / 255.0)
+            totalFreq += Double(histogram[i])
+        }
+        meanL /= max(totalFreq, 1e-8)
+        var variance: Double = 0
+        for i in 0..<256 {
+            variance += Double(histogram[i]) * pow(Double(i) / 255.0 - meanL, 2)
+        }
+        variance /= max(totalFreq, 1e-8)
+        return min(1.0, sqrt(variance) / 0.40)
     }
 
     // MARK: - Preset Recommendations

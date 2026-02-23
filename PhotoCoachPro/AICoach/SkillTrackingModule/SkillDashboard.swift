@@ -76,6 +76,14 @@ struct SkillDashboard: Codable, Identifiable, Equatable {
             case high = "High"
             case medium = "Medium"
             case low = "Low"
+
+            var order: Int {
+                switch self {
+                case .high:   return 0
+                case .medium: return 1
+                case .low:    return 2
+                }
+            }
         }
 
         init(
@@ -279,7 +287,7 @@ struct SkillDashboard: Codable, Identifiable, Equatable {
             ))
         }
 
-        return insights.sorted { $0.priority.rawValue < $1.priority.rawValue }
+        return insights.sorted { $0.priority.order < $1.priority.order }
     }
 
     // MARK: - Achievement Generation
@@ -287,7 +295,10 @@ struct SkillDashboard: Codable, Identifiable, Equatable {
     private static func generateAchievements(from history: SkillHistory) -> [Achievement] {
         var achievements: [Achievement] = []
 
-        let totalMeasurements = history.metrics.values.map { $0.measurements.count }.reduce(0, +)
+        // Use totalPhotosAnalyzed, not the sum of per-category measurements.
+        // Each photo critique generates one measurement per category (6 categories),
+        // so the per-category sum is 6× the actual photo count, triggering achievements far too early.
+        let totalMeasurements = history.totalPhotosAnalyzed
 
         // First critique
         if totalMeasurements >= 1 {
@@ -343,8 +354,11 @@ struct SkillDashboard: Codable, Identifiable, Equatable {
 
             if recentMeasurements.count >= 3 {
                 let sorted = recentMeasurements.sorted { $0.timestamp < $1.timestamp }
-                if let first = sorted.first, let last = sorted.last {
-                    let improvement = last.score - first.score
+                // Use peak score minus first score so a temporary regression doesn't
+                // suppress an achievement that was genuinely earned mid-period.
+                if let first = sorted.first {
+                    let maxScore = sorted.map { $0.score }.max() ?? 0.0
+                    let improvement = maxScore - first.score
                     if improvement >= 0.2 {
                         achievements.append(Achievement(
                             type: .rapidImprovement,

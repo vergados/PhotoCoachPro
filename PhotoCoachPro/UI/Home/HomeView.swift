@@ -16,6 +16,8 @@ struct HomeView: View {
     @State private var selectedItem: PhotosPickerItem?
     @State private var showingFilePicker = false
     @State private var showingImportMenu = false
+    @State private var showSettings = false
+    @ObservedObject private var privacySettings = PrivacySettings.shared
 
     var body: some View {
         NavigationStack {
@@ -36,6 +38,10 @@ struct HomeView: View {
                         if photos.isEmpty {
                             emptyState
                         } else {
+                            if privacySettings.cloudSyncEnabled {
+                                SyncStatusView()
+                                    .padding(.horizontal)
+                            }
                             statsBar
                             photoGrid
                         }
@@ -48,6 +54,15 @@ struct HomeView: View {
                 ToolbarItem(placement: .primaryAction) {
                     importButton
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showSettings = true } label: {
+                        Image(systemName: "gear")
+                    }
+                    .accessibilityLabel("Settings")
+                }
+            }
+            .sheet(isPresented: $showSettings) {
+                SyncSettingsView()
             }
             .onChange(of: selectedItem) { _, newItem in
                 Task {
@@ -137,7 +152,7 @@ struct HomeView: View {
 
             StatCard(
                 icon: "star.fill",
-                value: "0",
+                value: "\(photos.filter { $0.isFavorite }.count)",
                 label: "Favorites",
                 color: .orange
             )

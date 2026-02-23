@@ -6,21 +6,15 @@
 //
 
 import SwiftUI
-import ImageIO
 
 /// Prepare photos for printing
 struct PrintPreparationView: View {
     let photoRecord: PhotoRecord
-    @EnvironmentObject var appState: AppState
     @State private var settings = ExportSettings.print
     @State private var printSize: PrintSize = .standard4x6
     @State private var dpi: Int = 300
     @State private var paperType: PaperType = .glossy
     @State private var showSettings = false
-    @State private var isExporting = false
-    @State private var exportedURL: URL?
-    @State private var showExportSuccess = false
-    @State private var exportError: Error?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -45,24 +39,19 @@ struct PrintPreparationView: View {
                 printInfoSection
             }
             .navigationTitle("Print Preparation")
-            
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
                         dismiss()
                     }
                 }
 
-                ToolbarItem(placement: .confirmationAction) {
-                    if isExporting {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                    } else {
-                        Button("Export") {
-                            exportForPrint()
-                        }
-                        .fontWeight(.semibold)
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Export") {
+                        exportForPrint()
                     }
+                    .fontWeight(.semibold)
                 }
             }
             .sheet(isPresented: $showSettings) {
@@ -70,48 +59,6 @@ struct PrintPreparationView: View {
                     settings: $settings,
                     onExport: { _ in }
                 )
-            }
-            .sheet(isPresented: $showExportSuccess) {
-                if let url = exportedURL {
-                    #if os(iOS)
-                    ActivityViewController(items: [url])
-                    #else
-                    VStack(spacing: 20) {
-                        Image(systemName: "printer.filled.and.paper")
-                            .font(.system(size: 52))
-                            .foregroundColor(.green)
-
-                        Text("Ready to Print")
-                            .font(.title2)
-                            .fontWeight(.bold)
-
-                        Text(url.lastPathComponent)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-
-                        Button("Reveal in Finder") {
-                            NSWorkspace.shared.activateFileViewerSelecting([url])
-                            showExportSuccess = false
-                            dismiss()
-                        }
-                        .buttonStyle(.borderedProminent)
-
-                        Button("Done") {
-                            showExportSuccess = false
-                            dismiss()
-                        }
-                        .foregroundColor(.secondary)
-                    }
-                    .padding(32)
-                    #endif
-                }
-            }
-            .alert("Export Failed", isPresented: .constant(exportError != nil)) {
-                Button("OK") { exportError = nil }
-            } message: {
-                if let error = exportError {
-                    Text(error.localizedDescription)
-                }
             }
         }
     }
@@ -132,7 +79,7 @@ struct PrintPreparationView: View {
                     .tag(size)
                 }
             }
-            .pickerStyle(.menu)
+            .pickerStyle(.navigationLink)
             .onChange(of: printSize) { _, newSize in
                 updateResolutionForPrintSize(newSize)
             }
@@ -153,7 +100,7 @@ struct PrintPreparationView: View {
                 Text("300 DPI (Standard)").tag(300)
                 Text("600 DPI (High Quality)").tag(600)
             }
-            .pickerStyle(.menu)
+            .pickerStyle(.navigationLink)
         } header: {
             Text("Resolution (DPI)")
         } footer: {
@@ -177,7 +124,7 @@ struct PrintPreparationView: View {
                     .tag(type)
                 }
             }
-            .pickerStyle(.menu)
+            .pickerStyle(.navigationLink)
         } header: {
             Text("Paper Type")
         } footer: {
@@ -298,35 +245,6 @@ struct PrintPreparationView: View {
 
     // MARK: - Actions
 
-    /// Writes TIFF XResolution/YResolution and JFIF density tags into the exported file
-    /// so print drivers interpret the image at the intended DPI.
-    private func injectPrintMetadata(at url: URL, dpi: Int) {
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-              let type = CGImageSourceGetType(source),
-              let imageRef = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return }
-
-        // Merge resolution into the existing properties
-        var props = (CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any]) ?? [:]
-
-        // TIFF resolution tags — understood by most print drivers and TIFF-aware software
-        var tiff = (props[kCGImagePropertyTIFFDictionary as String] as? [String: Any]) ?? [:]
-        tiff[kCGImagePropertyTIFFXResolution as String] = dpi
-        tiff[kCGImagePropertyTIFFYResolution as String] = dpi
-        tiff[kCGImagePropertyTIFFResolutionUnit as String] = 2  // 2 = pixels per inch
-        props[kCGImagePropertyTIFFDictionary as String] = tiff
-
-        // JFIF density tags — respected by JPEG viewers and print queues
-        var jfif = (props[kCGImagePropertyJFIFDictionary as String] as? [String: Any]) ?? [:]
-        jfif[kCGImagePropertyJFIFXDensity as String] = dpi
-        jfif[kCGImagePropertyJFIFYDensity as String] = dpi
-        jfif[kCGImagePropertyJFIFDensityUnit as String] = 1  // 1 = pixels per inch
-        props[kCGImagePropertyJFIFDictionary as String] = jfif
-
-        guard let dest = CGImageDestinationCreateWithURL(url as CFURL, type, 1, nil) else { return }
-        CGImageDestinationAddImage(dest, imageRef, props as CFDictionary)
-        CGImageDestinationFinalize(dest)
-    }
-
     private func updateResolutionForPrintSize(_ size: PrintSize) {
         // Automatically set optimal DPI
         switch size {
@@ -342,58 +260,9 @@ struct PrintPreparationView: View {
     }
 
     private func exportForPrint() {
-        isExporting = true
-
-        Task {
-            do {
-                // Re-render from source with current edits
-                guard let source = appState.currentImage,
-                      let history = appState.currentEditHistory else {
-                    isExporting = false
-                    return
-                }
-                let instructions = history.editStack.activeInstructions
-                let renderedCI = await appState.editGraphEngine.render(
-                    source: source, instructions: instructions
-                )
-
-                // Build print-tuned export settings (preserve original resolution for print)
-                var printSettings = settings
-                printSettings.resolution = .original
-
-                // Write to Downloads directory
-                #if os(iOS)
-                let outputDir = FileManager.default.temporaryDirectory
-                #else
-                let outputDir = FileManager.default.urls(
-                    for: .downloadsDirectory, in: .userDomainMask
-                ).first ?? FileManager.default.temporaryDirectory
-                #endif
-
-                let baseName = photoRecord.fileName
-                    .components(separatedBy: ".").dropLast().joined(separator: "_")
-                    .replacingOccurrences(of: " ", with: "_")
-                let filename = "\(baseName)_\(printSize.rawValue.replacingOccurrences(of: "\"", with: "in"))_\(dpi)dpi.\(settings.format.fileExtension)"
-                let outputURL = outputDir.appendingPathComponent(filename)
-
-                try await appState.exportEngine.export(
-                    image: renderedCI,
-                    settings: printSettings,
-                    photoRecord: photoRecord,
-                    outputURL: outputURL
-                )
-
-                // Embed print resolution metadata so the file is correctly sized by print drivers
-                injectPrintMetadata(at: outputURL, dpi: dpi)
-
-                exportedURL = outputURL
-                isExporting = false
-                showExportSuccess = true
-            } catch {
-                exportError = error
-                isExporting = false
-            }
-        }
+        // Export with print settings
+        print("Exporting for print: \(printSize.rawValue) at \(dpi) DPI")
+        dismiss()
     }
 }
 

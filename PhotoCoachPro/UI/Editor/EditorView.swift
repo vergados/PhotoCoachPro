@@ -14,12 +14,31 @@ struct EditorView: View {
     @State private var selectedTool: EditTool = .basic
     @State private var showBeforeAfter = false
     @State private var showHistogram = true
+    @State private var curvePoints: [ToneCurvePoint] = [
+        ToneCurvePoint(x: 0, y: 0),
+        ToneCurvePoint(x: 0.25, y: 0.25),
+        ToneCurvePoint(x: 0.75, y: 0.75),
+        ToneCurvePoint(x: 1, y: 1)
+    ]
+    @State private var cropRect: CGRect = .zero
+    @State private var cropRotation: Double = 0
+    @State private var cropAspectRatio: CropAspectRatio? = nil
+    @State private var showExportOptions = false
+    @State private var showShareSheet = false
+    @State private var showPrintPrep = false
+    @State private var showSavePreset = false
+    @State private var exportSettings = ExportSettings()
 
     enum EditTool: String, CaseIterable {
         case basic = "Basic"
         case color = "Color"
         case detail = "Detail"
         case effects = "Effects"
+        case curves = "Curves"
+        case hsl = "HSL"
+        case crop = "Crop"
+        case mask = "Masks"
+        case lens = "Lens"
 
         var icon: String {
             switch self {
@@ -27,6 +46,11 @@ struct EditorView: View {
             case .color: return "paintpalette"
             case .detail: return "sparkles"
             case .effects: return "wand.and.stars"
+            case .curves: return "waveform.path.ecg"
+            case .hsl: return "paintpalette.fill"
+            case .crop: return "crop"
+            case .mask: return "lasso"
+            case .lens: return "camera.aperture"
             }
         }
     }
@@ -61,6 +85,28 @@ struct EditorView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     toolbarButtons
+                }
+            }
+            .sheet(isPresented: $showExportOptions) {
+                if let photo = appState.currentPhoto {
+                    ExportOptionsView(settings: $exportSettings) { _ in
+                        showExportOptions = false
+                    }
+                }
+            }
+            .sheet(isPresented: $showShareSheet) {
+                if let photo = appState.currentPhoto {
+                    ShareView(photoRecord: photo)
+                }
+            }
+            .sheet(isPresented: $showPrintPrep) {
+                if let photo = appState.currentPhoto {
+                    PrintPreparationView(photoRecord: photo)
+                }
+            }
+            .sheet(isPresented: $showSavePreset) {
+                if let editRecord = appState.currentEditHistory?.editRecord {
+                    SavePresetView(editRecord: editRecord)
                 }
             }
         }
@@ -182,6 +228,43 @@ struct EditorView: View {
                         DetailControls()
                     case .effects:
                         EffectsControls()
+                    case .curves:
+                        ToneCurveView(curvePoints: $curvePoints) {
+                            let sorted = curvePoints.sorted { $0.x < $1.x }
+                            let pointsStr = sorted.map { "\($0.x),\($0.y)" }.joined(separator: ";")
+                            let instruction = EditInstruction(
+                                type: .toneCurveControlPoint,
+                                value: Double(sorted.count),
+                                metadata: ["points": pointsStr]
+                            )
+                            Task { await appState.addEdit(instruction) }
+                        }
+                    case .hsl:
+                        HSLMixerView()
+                    case .crop:
+                        if let ciImage = appState.currentImage {
+                            CropView(
+                                cropRect: $cropRect,
+                                rotationAngle: $cropRotation,
+                                aspectRatio: $cropAspectRatio,
+                                imageSize: ciImage.extent.size
+                            ) {
+                                let extent = ciImage.extent
+                                let history = appState.currentEditHistory
+                                if cropRect.width > 0, cropRect.height > 0 {
+                                    history?.addInstruction(EditInstruction(type: .cropX, value: cropRect.origin.x / extent.width))
+                                    history?.addInstruction(EditInstruction(type: .cropY, value: cropRect.origin.y / extent.height))
+                                    history?.addInstruction(EditInstruction(type: .cropWidth, value: cropRect.width / extent.width))
+                                    history?.addInstruction(EditInstruction(type: .cropHeight, value: cropRect.height / extent.height))
+                                }
+                                history?.addInstruction(EditInstruction(type: .cropRotation, value: cropRotation))
+                                Task { await appState.renderCurrentImage() }
+                            }
+                        }
+                    case .mask:
+                        MaskPanelView()
+                    case .lens:
+                        LensControls()
                     }
                 }
                 .padding()
@@ -238,6 +321,16 @@ struct EditorView: View {
                 Image(systemName: "arrow.left.and.right")
             }
             .accessibilityLabel("Compare before and after")
+
+            Button { showExportOptions = true } label: { Image(systemName: "square.and.arrow.up") }
+                .accessibilityLabel("Export photo")
+            Button { showShareSheet = true } label: { Image(systemName: "shareplay") }
+                .accessibilityLabel("Share photo")
+            Button { showPrintPrep = true } label: { Image(systemName: "printer") }
+                .accessibilityLabel("Print photo")
+            Button { showSavePreset = true } label: { Image(systemName: "star.circle") }
+                .accessibilityLabel("Save as preset")
+                .disabled(appState.currentPhoto == nil)
         }
     }
 }
@@ -247,27 +340,30 @@ struct ToolPicker: View {
     @Binding var selection: EditorView.EditTool
 
     var body: some View {
-        HStack(spacing: 12) {
-            ForEach(EditorView.EditTool.allCases, id: \.self) { tool in
-                Button {
-                    selection = tool
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: tool.icon)
-                            .font(.title3)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(EditorView.EditTool.allCases, id: \.self) { tool in
+                    Button {
+                        selection = tool
+                    } label: {
+                        VStack(spacing: 4) {
+                            Image(systemName: tool.icon)
+                                .font(.title3)
 
-                        Text(tool.rawValue)
-                            .font(.caption)
+                            Text(tool.rawValue)
+                                .font(.caption)
+                        }
+                        .frame(minWidth: 60)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 6)
+                        .background(selection == tool ? Color.accentColor : Color.clear)
+                        .foregroundStyle(selection == tool ? .white : .primary)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(selection == tool ? Color.accentColor : Color.clear)
-                    .foregroundStyle(selection == tool ? .white : .primary)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(tool.rawValue)
+                    .accessibilityAddTraits(selection == tool ? [.isSelected] : [])
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(tool.rawValue)
-                .accessibilityAddTraits(selection == tool ? [.isSelected] : [])
             }
         }
     }

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Browse preset library
 struct PresetLibraryView: View {
@@ -15,6 +16,10 @@ struct PresetLibraryView: View {
     @State private var showFavoritesOnly = false
     @State private var selectedPreset: Preset? = nil
     @State private var isLoading = true
+    @State private var showImportPicker = false
+    @State private var showCreatePreset = false
+    @State private var importErrorMessage: String? = nil
+    @State private var showImportError = false
 
     private let manager = PresetManager()
 
@@ -38,11 +43,11 @@ struct PresetLibraryView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Menu {
-                        Button(action: { }) {
+                        Button(action: { showImportPicker = true }) {
                             Label("Import Preset", systemImage: "square.and.arrow.down")
                         }
 
-                        Button(action: { }) {
+                        Button(action: { showCreatePreset = true }) {
                             Label("Create Preset", systemImage: "plus")
                         }
                     } label: {
@@ -52,6 +57,23 @@ struct PresetLibraryView: View {
             }
             .task {
                 await loadPresets()
+            }
+            .fileImporter(
+                isPresented: $showImportPicker,
+                allowedContentTypes: [.json],
+                allowsMultipleSelection: false
+            ) { result in
+                Task { await handleImport(result: result) }
+            }
+            .sheet(isPresented: $showCreatePreset) {
+                CreatePresetSheet(manager: manager) {
+                    Task { await loadPresets() }
+                }
+            }
+            .alert("Import Failed", isPresented: $showImportError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(importErrorMessage ?? "Could not read the selected file.")
             }
         }
     }
@@ -220,6 +242,112 @@ struct PresetLibraryView: View {
             presets = try await manager.fetchAll()
         } catch {
             print("Failed to load presets: \(error)")
+        }
+    }
+
+    // MARK: - Import
+
+    private func handleImport(result: Result<[URL], Error>) async {
+        switch result {
+        case .failure(let error):
+            importErrorMessage = error.localizedDescription
+            showImportError = true
+
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            let accessing = url.startAccessingSecurityScopedResource()
+            defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+
+            do {
+                let data = try Data(contentsOf: url)
+                // Try single preset first, then collection
+                let imported: [Preset]
+                if let single = try? Preset.importFromJSON(data) {
+                    imported = [single]
+                } else if let collection = try? PresetCollection.importFromJSON(data) {
+                    imported = collection.presets
+                } else {
+                    throw CocoaError(.fileReadCorruptFile)
+                }
+
+                for var preset in imported {
+                    preset.isBuiltIn = false  // treat imported as user presets
+                    try? await manager.save(preset)
+                }
+                await loadPresets()
+
+            } catch {
+                importErrorMessage = "The file could not be read as a valid preset."
+                showImportError = true
+            }
+        }
+    }
+}
+
+// MARK: - Create Preset Sheet
+
+private struct CreatePresetSheet: View {
+    let manager: PresetManager
+    let onSaved: () -> Void
+
+    @State private var name = ""
+    @State private var category: Preset.PresetCategory = .custom
+    @State private var description = ""
+    @State private var isSaving = false
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Basic Info") {
+                    TextField("Preset Name", text: $name)
+
+                    Picker("Category", selection: $category) {
+                        ForEach(Preset.PresetCategory.allCases, id: \.self) { cat in
+                            HStack {
+                                Image(systemName: cat.icon)
+                                Text(cat.rawValue)
+                            }
+                            .tag(cat)
+                        }
+                    }
+                }
+
+                Section("Description (optional)") {
+                    TextField("Describe this preset…", text: $description, axis: .vertical)
+                        .lineLimit(3...6)
+                }
+
+                Section {
+                    Text("This creates an empty preset. To populate it with adjustments, open a photo in the editor, make your edits, then tap Save Preset.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Create Preset")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                        isSaving = true
+                        Task {
+                            let preset = Preset(
+                                name: name.trimmingCharacters(in: .whitespaces),
+                                category: category,
+                                instructions: [],
+                                description: description.isEmpty ? nil : description
+                            )
+                            try? await manager.save(preset)
+                            onSaved()
+                            dismiss()
+                        }
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
+                }
+            }
         }
     }
 }

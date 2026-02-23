@@ -189,52 +189,138 @@ actor MaskRefinementBrush {
     }
 
     private func drawStrokeGradient(ctx: CGContext, from start: CGPoint, to: CGPoint, gradient: CGGradient) {
-        // Draw radial gradients at start and end
+        // Draw radial gradient circles along the full stroke length so coverage is
+        // continuous. Spacing at radius/2 ensures adjacent circles overlap and
+        // eliminate the unfilled gap that appeared in the middle of long strokes.
         let radius = brushSize / 2
+        let dx = to.x - start.x
+        let dy = to.y - start.y
+        let length = sqrt(dx * dx + dy * dy)
 
-        ctx.drawRadialGradient(
-            gradient,
-            startCenter: start,
-            startRadius: 0,
-            endCenter: start,
-            endRadius: radius,
-            options: []
-        )
+        // Step along the segment, stamping a gradient circle every half-radius.
+        // Always include at least the start and end points.
+        let step = max(radius / 2.0, 1.0)
+        let stepCount = length > 0 ? Int((length / step).rounded(.up)) : 0
 
-        ctx.drawRadialGradient(
-            gradient,
-            startCenter: to,
-            startRadius: 0,
-            endCenter: to,
-            endRadius: radius,
-            options: []
-        )
+        for i in 0...stepCount {
+            let t = stepCount > 0 ? CGFloat(i) / CGFloat(stepCount) : 0
+            let center = CGPoint(x: start.x + dx * t, y: start.y + dy * t)
+            ctx.drawRadialGradient(
+                gradient,
+                startCenter: center,
+                startRadius: 0,
+                endCenter: center,
+                endRadius: radius,
+                options: []
+            )
+        }
     }
 
     // MARK: - Flood Fill
 
-    /// Flood fill from point (magic wand)
+    /// Flood fill from point (magic wand) — 4-connected BFS in RGB space.
+    ///
+    /// Renders `sourceImage` to a raw RGBA8 buffer, samples the seed color at
+    /// `point`, then grows outward through 4-connected neighbours whose RGB
+    /// distance to the seed colour is within `tolerance` (0 = exact match,
+    /// 1 = accept any colour).  The resulting fill region is blended into the
+    /// existing mask using lighten compositing.
     func floodFill(
         mask: CIImage,
         sourceImage: CIImage,
         at point: CGPoint,
         tolerance: Double = 0.1
     ) async -> CIImage {
-        // Simplified flood fill
-        // Production version would use proper seed fill algorithm
+        let ext    = sourceImage.extent
+        let width  = Int(ext.width)
+        let height = Int(ext.height)
+        guard width > 0, height > 0 else { return mask }
 
-        // Sample color at point
-        let sampleRect = CGRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2)
+        // Normalise image to origin so pixel indices are contiguous
+        let normalized = sourceImage.transformed(
+            by: CGAffineTransform(translationX: -ext.minX, y: -ext.minY))
 
-        // Create color-based mask
-        let colorMask = sourceImage.applyingFilter("CIColorThreshold", parameters: [
-            "inputThreshold": tolerance
-        ])
+        // Render to RGBA8 pixel buffer
+        let stride4    = width * 4
+        var srcBytes   = [UInt8](repeating: 0, count: height * stride4)
+        context.render(normalized,
+                       toBitmap: &srcBytes,
+                       rowBytes: stride4,
+                       bounds: CGRect(x: 0, y: 0, width: width, height: height),
+                       format: .RGBA8,
+                       colorSpace: nil)
 
-        // Combine with existing mask
+        // Map tap point into buffer coordinates (clamp to valid range)
+        let seedX = max(0, min(width  - 1, Int((point.x - ext.minX).rounded())))
+        let seedY = max(0, min(height - 1, Int((point.y - ext.minY).rounded())))
+
+        // Sample seed colour in 0–255 space
+        let si    = (seedY * width + seedX) * 4
+        let seedR = Double(srcBytes[si])
+        let seedG = Double(srcBytes[si + 1])
+        let seedB = Double(srcBytes[si + 2])
+
+        // tolerance 0–1 maps to Euclidean distance 0–255√3 ≈ 441.67
+        let maxDist = tolerance * 441.67
+        let tolSq   = maxDist * maxDist
+
+        // BFS — output single-channel mask (0 = not selected, 255 = selected)
+        var outBytes = [UInt8](repeating: 0, count: width * height)
+        var visited  = [Bool](repeating: false, count: width * height)
+
+        var queue = [(Int, Int)]()
+        queue.reserveCapacity(min(width * height, 131_072))
+        queue.append((seedX, seedY))
+        visited[seedY * width + seedX] = true
+
+        var head = 0
+        while head < queue.count {
+            let (cx, cy) = queue[head]
+            head += 1
+
+            let pi = (cy * width + cx) * 4
+            let dr = Double(srcBytes[pi])     - seedR
+            let dg = Double(srcBytes[pi + 1]) - seedG
+            let db = Double(srcBytes[pi + 2]) - seedB
+
+            guard dr*dr + dg*dg + db*db <= tolSq else { continue }
+
+            outBytes[cy * width + cx] = 255
+
+            // 4-connected neighbours
+            for (nx, ny) in [(cx-1,cy),(cx+1,cy),(cx,cy-1),(cx,cy+1)] {
+                guard nx >= 0, nx < width, ny >= 0, ny < height else { continue }
+                let ni = ny * width + nx
+                if !visited[ni] {
+                    visited[ni] = true
+                    queue.append((nx, ny))
+                }
+            }
+        }
+
+        // Reconstruct fill region as a CIImage (grayscale → RGBA8).
+        // Initialize to 0 (black = not selected) so any pixel the fill loop does not
+        // reach defaults to "not selected" rather than the incorrect "selected" (255).
+        var rgbaBytes = [UInt8](repeating: 0, count: width * height * 4)
+        for i in 0..<outBytes.count {
+            let v = outBytes[i]
+            rgbaBytes[i*4]     = v
+            rgbaBytes[i*4 + 1] = v
+            rgbaBytes[i*4 + 2] = v
+            rgbaBytes[i*4 + 3] = 255
+        }
+        let fillImage = CIImage(
+            bitmapData: Data(rgbaBytes),
+            bytesPerRow: width * 4,
+            size: CGSize(width: width, height: height),
+            format: .RGBA8,
+            colorSpace: nil
+        ).transformed(by: CGAffineTransform(translationX: ext.minX, y: ext.minY))
+
+        // Blend fill into existing mask
         return mask.applyingFilter("CILightenBlendMode", parameters: [
             kCIInputBackgroundImageKey: mask,
-            kCIInputImageKey: colorMask
+            kCIInputImageKey: fillImage
         ])
     }
 }

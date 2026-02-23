@@ -130,12 +130,15 @@ struct MaskLayer: Codable, Identifiable, Equatable {
             mask = mask.applyingGaussianBlur(sigma: featherRadius)
         }
 
-        // Apply opacity
+        // Apply opacity — scale RGB luminance channels directly (diagonal matrix).
+        // The w-component of each vector multiplies the *input alpha*, not the channel
+        // itself, so (0,0,0,opacity) replaces every pixel with a constant instead of
+        // fading the mask shape. Correct form: (opacity,0,0,0) scales R by opacity.
         if opacity < 1.0 {
             mask = mask.applyingFilter("CIColorMatrix", parameters: [
-                "inputRVector": CIVector(x: 0, y: 0, z: 0, w: opacity),
-                "inputGVector": CIVector(x: 0, y: 0, z: 0, w: opacity),
-                "inputBVector": CIVector(x: 0, y: 0, z: 0, w: opacity),
+                "inputRVector": CIVector(x: opacity, y: 0, z: 0, w: 0),
+                "inputGVector": CIVector(x: 0, y: opacity, z: 0, w: 0),
+                "inputBVector": CIVector(x: 0, y: 0, z: opacity, w: 0),
                 "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
                 "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 0)
             ])

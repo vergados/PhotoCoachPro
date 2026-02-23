@@ -113,6 +113,8 @@ private struct FilterChip: View {
 
 private struct SuggestionCard: View {
     let suggestion: CritiqueResult.EditSuggestion
+    @EnvironmentObject var appState: AppState
+    @State private var didApply: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -147,25 +149,45 @@ private struct SuggestionCard: View {
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            // Expected improvement info not available in data model
+            // Expected improvement badge
+            if let improvement = suggestion.expectedImprovement {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                    Text("+\(Int(improvement * 100)) pts expected")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.green)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.green.opacity(0.1))
+                .cornerRadius(8)
+            }
 
             // Apply button (if instruction available)
-            if suggestion.instruction != nil {
+            if let instruction = suggestion.instruction {
                 Button(action: {
-                    // Apply edit action
+                    guard !didApply else { return }
+                    appState.currentEditHistory?.addInstruction(instruction)
+                    Task { await appState.renderCurrentImage() }
+                    appState.selectedTab = .editor
+                    didApply = true
                 }) {
                     HStack {
-                        Image(systemName: "wand.and.stars")
-                        Text("Apply Edit")
+                        Image(systemName: didApply ? "checkmark.circle.fill" : "wand.and.stars")
+                        Text(didApply ? "Applied" : "Apply Edit")
                     }
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
-                    .background(Color.blue)
+                    .background(didApply ? Color.green : Color.blue)
                     .foregroundColor(.white)
                     .cornerRadius(10)
                 }
+                .disabled(didApply || appState.currentPhoto == nil)
             }
         }
         .padding()

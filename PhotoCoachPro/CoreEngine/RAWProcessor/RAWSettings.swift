@@ -15,10 +15,11 @@ struct RAWSettings: Codable, Equatable {
     var baselineExposure: Double      // Camera baseline (-2.0 to +2.0)
 
     // White balance
-    var temperature: Double           // Kelvin (2000 to 25000)
-    var tint: Double                  // Green/Magenta (-150 to +150)
-    var neutralTemperature: Double?   // Auto WB reference
-    var neutralTint: Double?          // Auto WB reference
+    var temperature: Double           // Kelvin (2000 to 25000) — user manual setting
+    var tint: Double                  // Green/Magenta (-150 to +150) — user manual setting
+    var neutralTemperature: Double?   // Camera-detected neutral point from the RAW file
+    var neutralTint: Double?          // Camera-detected neutral point from the RAW file
+    var useAutoWhiteBalance: Bool = false  // true = use neutralTemperature/Tint when available
 
     // Noise reduction
     var luminanceNoiseReduction: Double     // 0.0 to 1.0
@@ -64,6 +65,7 @@ struct RAWSettings: Codable, Equatable {
             tint: 0,
             neutralTemperature: nil,
             neutralTint: nil,
+            useAutoWhiteBalance: false,
             luminanceNoiseReduction: 0.0,
             colorNoiseReduction: 0.0,
             noiseReductionSharpness: 0.5,
@@ -123,12 +125,16 @@ extension RAWSettings {
         params["inputBaselineExposure"] = baselineExposure
 
         // White balance
-        if let neutralTemp = neutralTemperature, let neutralTint = neutralTint {
-            params["inputNeutralChromaticityX"] = neutralTemp
-            params["inputNeutralChromaticityY"] = neutralTint
+        // Only use the camera-detected neutral point when the user has explicitly opted in.
+        // Previously, any non-nil neutralTemperature silently overrode the user's manual
+        // temperature/tint adjustment, making manual WB edits have no effect.
+        if useAutoWhiteBalance, let neutralTemp = neutralTemperature, let neutralTint = neutralTint {
+            params["inputNeutralTemperature"] = neutralTemp
+            params["inputNeutralTint"] = neutralTint
+        } else {
+            params["inputNeutralTemperature"] = temperature
+            params["inputNeutralTint"] = tint
         }
-        params["inputNeutralTemperature"] = temperature
-        params["inputNeutralTint"] = tint
 
         // Noise reduction
         params["inputLuminanceNoiseReductionAmount"] = luminanceNoiseReduction

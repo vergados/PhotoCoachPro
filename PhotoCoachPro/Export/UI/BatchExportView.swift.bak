@@ -9,7 +9,6 @@ import SwiftUI
 
 /// Batch export multiple photos
 struct BatchExportView: View {
-    @EnvironmentObject var appState: AppState
     @State private var batchJob: BatchExportJob
     @State private var isExporting = false
     @State private var showSettings = false
@@ -55,16 +54,16 @@ struct BatchExportView: View {
                 }
             }
             .navigationTitle("Batch Export")
-            
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
                         dismiss()
                     }
                     .disabled(isExporting)
                 }
 
-                ToolbarItem(placement: .confirmationAction) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     if !isExporting {
                         Button("Settings") {
                             showSettings = true
@@ -160,7 +159,6 @@ struct BatchExportView: View {
                     ForEach(Array(batchJob.jobs.enumerated()), id: \.element.id) { index, job in
                         JobRow(
                             job: job,
-                            fileName: index < photos.count ? photos[index].fileName : "Photo \(index + 1)",
                             isActive: index == currentJobIndex
                         )
                     }
@@ -212,7 +210,7 @@ struct BatchExportView: View {
             }
         }
         .padding()
-        .background(Color(NSColor.controlBackgroundColor))
+        .background(Color(.secondarySystemBackground))
         .cornerRadius(12)
         .padding(.horizontal)
     }
@@ -229,51 +227,29 @@ struct BatchExportView: View {
                 withIntermediateDirectories: true
             )
 
+            // Export each job
             for (index, var job) in batchJob.jobs.enumerated() {
                 currentJobIndex = index
+
+                // Update status to processing
                 job.status = .processing
                 batchJob.jobs[index] = job
 
+                // Simulate export (replace with actual ExportEngine call)
                 do {
+                    // Generate output filename
                     let photo = photos[index]
-
-                    // Build output URL
-                    let baseName = photo.fileName
-                        .components(separatedBy: ".").dropLast().joined(separator: "_")
-                        .replacingOccurrences(of: " ", with: "_")
-                    let filename = "\(baseName).\(batchJob.settings.format.fileExtension)"
+                    let filename = "\(photo.fileName.replacingOccurrences(of: ".", with: "_")).\(batchJob.settings.format.fileExtension)"
                     let outputURL = batchJob.outputDirectory.appendingPathComponent(filename)
 
-                    // Load image from source (file or Photos library)
-                    let loaded = try await appState.imageLoader.loadImage(for: photo)
+                    // Simulate progress
+                    for progress in stride(from: 0.0, through: 1.0, by: 0.25) {
+                        job.updateProgress(progress)
+                        batchJob.jobs[index] = job
+                        try await Task.sleep(nanoseconds: 200_000_000) // 0.2s
+                    }
 
-                    // Load edit instructions for this photo
-                    let editRecord = try appState.database.getOrCreateEditRecord(for: photo)
-                    let historyManager = EditHistoryManager(
-                        editRecord: editRecord, database: appState.database
-                    )
-                    let instructions = historyManager.editStack.activeInstructions
-
-                    // Render with edits applied
-                    let renderedCI = await appState.editGraphEngine.render(
-                        source: loaded.image, instructions: instructions
-                    )
-
-                    // Export with per-job progress updates
-                    try await appState.exportEngine.export(
-                        image: renderedCI,
-                        settings: batchJob.settings,
-                        photoRecord: photo,
-                        outputURL: outputURL,
-                        progressHandler: { progress in
-                            Task { @MainActor in
-                                var updated = self.batchJob.jobs[index]
-                                updated.updateProgress(progress)
-                                self.batchJob.jobs[index] = updated
-                            }
-                        }
-                    )
-
+                    // Mark complete
                     job.complete(url: outputURL)
                     batchJob.jobs[index] = job
                 } catch {
@@ -298,7 +274,6 @@ struct BatchExportView: View {
 
 private struct JobRow: View {
     let job: ExportJob
-    let fileName: String
     let isActive: Bool
 
     var body: some View {
@@ -311,10 +286,9 @@ private struct JobRow: View {
 
             // Job info
             VStack(alignment: .leading, spacing: 4) {
-                Text(fileName)
+                Text("Photo \(job.id.uuidString.prefix(8))...")
                     .font(.subheadline)
                     .fontWeight(isActive ? .semibold : .regular)
-                    .lineLimit(1)
 
                 Text(job.status.rawValue)
                     .font(.caption)
@@ -336,7 +310,7 @@ private struct JobRow: View {
             }
         }
         .padding()
-        .background(isActive ? Color.blue.opacity(0.1) : Color(NSColor.controlBackgroundColor))
+        .background(isActive ? Color.blue.opacity(0.1) : Color(.tertiarySystemBackground))
         .cornerRadius(10)
     }
 }

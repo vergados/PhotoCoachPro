@@ -139,6 +139,43 @@ struct EffectsControls: View {
     }
 }
 
+// MARK: - Lens Controls
+struct LensControls: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            EditSlider(
+                label: "Lens Correction",
+                type: .lensCorrection,
+                icon: "camera.aperture"
+            )
+
+            EditSlider(
+                label: "Distortion",
+                type: .distortion,
+                icon: "circle.and.line.horizontal"
+            )
+
+            EditSlider(
+                label: "Vertical Perspective",
+                type: .perspectiveVertical,
+                icon: "arrow.up.and.down"
+            )
+
+            EditSlider(
+                label: "Horizontal Perspective",
+                type: .perspectiveHorizontal,
+                icon: "arrow.left.and.right"
+            )
+
+            EditSlider(
+                label: "Straighten",
+                type: .straighten,
+                icon: "rotate.right"
+            )
+        }
+    }
+}
+
 // MARK: - Reusable Edit Slider
 struct EditSlider: View {
     let label: String

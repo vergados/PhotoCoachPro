@@ -10,9 +10,12 @@ import SwiftUI
 /// Preset detail with preview and apply
 struct PresetDetailView: View {
     let preset: Preset
+    @EnvironmentObject var appState: AppState
     @State private var strength: Double = 1.0
     @State private var isFavorite: Bool
-    @State private var showBeforeAfter = false
+    @State private var afterImage: PlatformImage?
+    @State private var showingBefore = false
+    @State private var isApplying = false
     @Environment(\.dismiss) private var dismiss
 
     init(preset: Preset) {
@@ -63,52 +66,63 @@ struct PresetDetailView: View {
 
     private var previewSection: some View {
         VStack(spacing: 12) {
-            // Preview image placeholder
             ZStack {
                 Rectangle()
                     .fill(Color.gray.opacity(0.2))
                     .aspectRatio(4/3, contentMode: .fit)
 
-                VStack(spacing: 12) {
-                    Image(systemName: "photo")
-                        .font(.system(size: 48))
-                        .foregroundColor(.secondary)
+                let displayImage = showingBefore ? appState.renderedImage : (afterImage ?? appState.renderedImage)
+                if let img = displayImage {
+                    Image(nsImage: img)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                } else if appState.currentPhoto != nil {
+                    ProgressView()
+                } else {
+                    VStack(spacing: 12) {
+                        Image(systemName: "photo")
+                            .font(.system(size: 48))
+                            .foregroundColor(.secondary)
 
-                    Text("Select a photo to preview")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        Text("Select a photo to preview")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
             .cornerRadius(16)
 
-            // Before/After toggle
-            if showBeforeAfter {
+            // Before/After toggle — shown once a preview has rendered
+            if afterImage != nil {
                 HStack {
-                    Button(action: { }) {
+                    Button(action: { showingBefore = true }) {
                         Text("Before")
                             .font(.caption)
                             .fontWeight(.semibold)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(Color.blue)
-                            .foregroundColor(.white)
+                            .background(showingBefore ? Color.blue : Color(NSColor.controlBackgroundColor))
+                            .foregroundColor(showingBefore ? .white : .primary)
                             .cornerRadius(8)
                     }
 
                     Spacer()
 
-                    Button(action: { }) {
+                    Button(action: { showingBefore = false }) {
                         Text("After")
                             .font(.caption)
                             .fontWeight(.semibold)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(Color(NSColor.controlBackgroundColor))
-                            .foregroundColor(.primary)
+                            .background(!showingBefore ? Color.blue : Color(NSColor.controlBackgroundColor))
+                            .foregroundColor(!showingBefore ? .white : .primary)
                             .cornerRadius(8)
                     }
                 }
             }
+        }
+        .task(id: strength) {
+            await updatePreview()
         }
     }
 
@@ -279,22 +293,33 @@ struct PresetDetailView: View {
     private var actionButtons: some View {
         VStack(spacing: 12) {
             // Apply button
-            Button(action: { }) {
+            Button(action: {
+                Task { await applyPreset() }
+            }) {
                 HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                    Text("Apply Preset")
+                    if isApplying {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    } else {
+                        Image(systemName: "checkmark.circle.fill")
+                    }
+                    Text(isApplying ? "Applying…" : "Apply Preset")
                 }
                 .font(.headline)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color.blue)
+                .background(appState.currentPhoto == nil ? Color.gray : Color.blue)
                 .foregroundColor(.white)
                 .cornerRadius(12)
             }
+            .disabled(appState.currentPhoto == nil || isApplying)
 
             HStack(spacing: 12) {
-                // Export button
-                Button(action: { }) {
+                // Export button — opens the export sheet from the editor
+                Button(action: {
+                    dismiss()
+                    appState.selectedTab = .editor
+                }) {
                     HStack {
                         Image(systemName: "square.and.arrow.up")
                         Text("Export")
@@ -309,7 +334,9 @@ struct PresetDetailView: View {
 
                 // Duplicate button
                 if !preset.isBuiltIn {
-                    Button(action: { }) {
+                    Button(action: {
+                        Task { await duplicatePreset() }
+                    }) {
                         HStack {
                             Image(systemName: "doc.on.doc")
                             Text("Duplicate")
@@ -326,7 +353,9 @@ struct PresetDetailView: View {
 
             // Delete button (custom presets only)
             if !preset.isBuiltIn {
-                Button(role: .destructive, action: { }) {
+                Button(role: .destructive, action: {
+                    Task { await deletePreset() }
+                }) {
                     HStack {
                         Image(systemName: "trash")
                         Text("Delete Preset")
@@ -348,6 +377,49 @@ struct PresetDetailView: View {
         let formatter = DateFormatter()
         formatter.dateStyle = .short
         return formatter.string(from: date)
+    }
+
+    // MARK: - Preview Computation
+
+    private func updatePreview() async {
+        guard let source = appState.currentImage else {
+            afterImage = nil
+            return
+        }
+        let scaledInstructions = preset.instructions.map { instruction -> EditInstruction in
+            var scaled = instruction
+            scaled.value = instruction.value * strength
+            return scaled
+        }
+        let currentInstructions = appState.currentEditHistory?.editStack.activeInstructions ?? []
+        let combined = currentInstructions + scaledInstructions
+        let rendered = await appState.editGraphEngine.render(source: source, instructions: combined)
+        afterImage = await appState.imageRenderer.renderPlatformImage(from: rendered)
+    }
+
+    // MARK: - Preset Actions
+
+    private func applyPreset() async {
+        guard let history = appState.currentEditHistory else { return }
+        isApplying = true
+        for instruction in preset.instructions {
+            var scaled = instruction
+            scaled.value = instruction.value * strength
+            history.addInstruction(scaled)
+        }
+        await appState.renderCurrentImage()
+        isApplying = false
+        dismiss()
+    }
+
+    private func duplicatePreset() async {
+        try? await appState.customPresetManager.duplicate(preset)
+        dismiss()
+    }
+
+    private func deletePreset() async {
+        try? await appState.customPresetManager.delete(preset)
+        dismiss()
     }
 }
 

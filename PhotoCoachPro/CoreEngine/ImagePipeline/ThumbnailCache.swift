@@ -82,6 +82,7 @@ actor ThumbnailCache {
 
     private func generateScaledImage(from ciImage: CIImage) async -> PlatformImage? {
         let extent = ciImage.extent
+        guard extent.width > 0, extent.height > 0 else { return nil }
         let scaleX = thumbnailSize.width / extent.width
         let scaleY = thumbnailSize.height / extent.height
         let scale = min(scaleX, scaleY)
@@ -124,8 +125,8 @@ actor ThumbnailCache {
 
         init(photoID: UUID, editStack: [EditInstruction]) {
             self.photoID = photoID
-            // Simple hash of instruction count and types
-            self.editHash = "\(editStack.count)-\(editStack.map { $0.type.rawValue }.joined())"
+            // Hash includes both type and value so stacks with same types but different values don't collide
+            self.editHash = "\(editStack.count)-\(editStack.map { "\($0.type.rawValue):\($0.value)" }.joined(separator: "|"))"
         }
     }
 

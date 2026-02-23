@@ -35,7 +35,7 @@ actor RAWDecoder {
         }
 
         // Extract native size
-        let nativeSize = rawFilter.value(forKey: "inputImageOrientation") as? CGSize ?? outputImage.extent.size
+        let nativeSize = outputImage.extent.size
 
         // Extract available keys for advanced control
         let availableKeys = rawFilter.inputKeys
@@ -98,18 +98,10 @@ actor RAWDecoder {
     // MARK: - Private Helpers
 
     private func filterOptions(for settings: RAWSettings) -> [CIRAWFilterOption: Any] {
-        var options: [CIRAWFilterOption: Any] = [
+        return [
             .allowDraftMode: false,
             .baselineExposure: settings.baselineExposure
         ]
-
-        // Color space
-        // Note: CIRAWFilterOption.colorSpace not available in current SDK
-        // Color space will use native RAW profile
-        // TODO: Set color space via filter.setValue() after filter creation
-        _ = settings.colorSpace // Silence unused warning
-
-        return options
     }
 
     private func applySettings(_ settings: RAWSettings, to filter: CIFilter) {
@@ -120,6 +112,12 @@ actor RAWDecoder {
             if filter.inputKeys.contains(key) {
                 filter.setValue(value, forKey: key)
             }
+        }
+
+        // Apply working color space — not available as CIRAWFilterOption, must be set after filter creation
+        let colorSpaceKey = "inputWorkingColorSpace"
+        if filter.inputKeys.contains(colorSpaceKey) {
+            filter.setValue(settings.colorSpace, forKey: colorSpaceKey)
         }
     }
 

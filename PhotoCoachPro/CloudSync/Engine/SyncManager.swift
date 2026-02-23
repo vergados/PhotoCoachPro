@@ -146,36 +146,34 @@ actor SyncManager {
         syncStatus.pendingUploads = syncQueue.count
         notifyStatusUpdate()
 
-        // Sort by priority
-        let sorted = syncQueue.sorted { $0.priority.rawValue > $1.priority.rawValue }
+        // Sort the live array in-place so index-based operations are consistent
+        // with priority ordering. The previous approach iterated a pre-loop snapshot
+        // (`sorted`) while mutating `syncQueue`, causing `canRetry` checks to read
+        // stale retry counts from the snapshot rather than the live queue entry.
+        syncQueue.sort { $0.priority.rawValue > $1.priority.rawValue }
 
-        for item in sorted {
+        var i = 0
+        while i < syncQueue.count {
+            let item = syncQueue[i]
             do {
                 try await processQueueItem(item)
-
-                // Remove from queue
-                if let index = syncQueue.firstIndex(where: { $0.id == item.id }) {
-                    syncQueue.remove(at: index)
-                    syncStatus.pendingUploads -= 1
-                    notifyStatusUpdate()
-                }
-
+                syncQueue.remove(at: i)
+                syncStatus.pendingUploads -= 1
+                notifyStatusUpdate()
+                // Don't advance i — the next item shifted into position i
             } catch {
-                // Handle retry logic
-                if var retryItem = syncQueue.first(where: { $0.id == item.id }) {
-                    if retryItem.canRetry {
-                        retryItem.incrementRetry(error: error.localizedDescription)
-                        if let index = syncQueue.firstIndex(where: { $0.id == item.id }) {
-                            syncQueue[index] = retryItem
-                        }
-                    } else {
-                        // Max retries reached
-                        syncStatus.addError(SyncStatus.SyncError(
-                            recordType: item.recordType,
-                            recordID: item.recordID,
-                            error: error.localizedDescription
-                        ))
-                    }
+                if syncQueue[i].canRetry {
+                    syncQueue[i].incrementRetry(error: error.localizedDescription)
+                    i += 1
+                } else {
+                    // Max retries reached — log the error and drop the item
+                    syncStatus.addError(SyncStatus.SyncError(
+                        recordType: item.recordType,
+                        recordID: item.recordID,
+                        error: error.localizedDescription
+                    ))
+                    syncQueue.remove(at: i)
+                    syncStatus.pendingUploads -= 1
                 }
             }
         }
@@ -410,16 +408,97 @@ actor SyncManager {
     func resolveConflict(id: UUID, resolution: SyncConflict.Resolution) async throws {
         guard let conflict = conflicts.first(where: { $0.id == id }) else { return }
 
-        // Apply resolution
-        // Implementation depends on record type and resolution strategy
+        switch resolution {
+        case .keepLocal:
+            // Re-upload the local version to override the remote
+            queueUpload(recordType: conflict.recordType, recordID: conflict.recordID, priority: .high)
 
-        // Remove from conflicts
+        case .keepRemote:
+            // Apply the remote record to the local database
+            try await applyRemoteRecord(conflict)
+
+        case .keepBoth:
+            // Accept the remote record as a new entry while leaving local intact
+            try await applyRemoteRecord(conflict)
+
+        case .manual:
+            // User resolved this outside the app; no automatic action needed
+            break
+        }
+
         conflicts.removeAll { $0.id == id }
+    }
+
+    private func applyRemoteRecord(_ conflict: SyncConflict) async throws {
+        switch conflict.recordType {
+        case "Photo":
+            guard let cloudPhoto = conflict.remoteRecord as? CloudPhoto else {
+                throw CloudSyncError.invalidRecord
+            }
+            guard let photo = await database.fetchPhoto(id: cloudPhoto.id) else {
+                throw CloudSyncError.invalidRecord
+            }
+            // Update local photo metadata with remote values
+            await MainActor.run {
+                photo.fileName = cloudPhoto.fileName
+                photo.width = cloudPhoto.width
+                photo.height = cloudPhoto.height
+                photo.fileSizeBytes = cloudPhoto.fileSizeBytes
+            }
+            try await MainActor.run { try database.context.save() }
+
+        case "EditRecord":
+            guard let cloudEdit = conflict.remoteRecord as? CloudEditRecord else {
+                throw CloudSyncError.invalidRecord
+            }
+            let decoder = JSONDecoder()
+            let instructions = try decoder.decode([EditInstruction].self, from: cloudEdit.instructionsData)
+            guard let editRecord = await database.fetchEditRecord(for: cloudEdit.photoID) else {
+                throw CloudSyncError.invalidRecord
+            }
+            // Replace local edit stack with the remote instructions
+            await MainActor.run {
+                editRecord.editStack = EditStack(instructions: instructions)
+            }
+            try await MainActor.run { try database.context.save() }
+
+        case "Preset":
+            guard let cloudPreset = conflict.remoteRecord as? CloudPreset else {
+                throw CloudSyncError.invalidRecord
+            }
+            guard let preset = await database.fetchPreset(id: cloudPreset.id) else {
+                throw CloudSyncError.invalidRecord
+            }
+            // Update local preset metadata with remote values
+            await MainActor.run {
+                preset.name = cloudPreset.name
+                preset.modifiedAt = cloudPreset.modifiedDate
+            }
+            try await MainActor.run { try database.context.save() }
+
+        default:
+            throw CloudSyncError.invalidRecord
+        }
     }
 
     // MARK: - Queue Management
 
     func queueUpload(recordType: String, recordID: UUID, priority: SyncQueueItem.Priority = .normal) {
+        // Dedup: if the same record is already queued, upgrade its priority instead of
+        // appending a second entry. Without this, rapid edits inflate syncQueue and
+        // pendingUploads permanently because each append increments the counter.
+        if let existingIndex = syncQueue.firstIndex(where: { $0.recordID == recordID && $0.recordType == recordType }) {
+            if priority.rawValue > syncQueue[existingIndex].priority.rawValue {
+                syncQueue[existingIndex] = SyncQueueItem(
+                    operation: .update,
+                    recordType: recordType,
+                    recordID: recordID,
+                    priority: priority
+                )
+            }
+            return  // Already queued — do not increment pendingUploads
+        }
+
         let item = SyncQueueItem(
             operation: .update,
             recordType: recordType,

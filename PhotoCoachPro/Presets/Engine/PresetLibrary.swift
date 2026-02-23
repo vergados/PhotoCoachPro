@@ -13,6 +13,7 @@ struct PresetLibrary {
     // MARK: - Portrait Presets
 
     static let portraitNatural = Preset(
+        id: UUID(uuidString: "A1B2C3D4-E5F6-7890-ABCD-EF1234567801")!,
         name: "Natural Portrait",
         category: .portrait,
         instructions: [
@@ -28,6 +29,7 @@ struct PresetLibrary {
     )
 
     static let portraitDramatic = Preset(
+        id: UUID(uuidString: "A1B2C3D4-E5F6-7890-ABCD-EF1234567802")!,
         name: "Dramatic Portrait",
         category: .portrait,
         instructions: [
@@ -44,6 +46,7 @@ struct PresetLibrary {
     )
 
     static let portraitGlow = Preset(
+        id: UUID(uuidString: "A1B2C3D4-E5F6-7890-ABCD-EF1234567803")!,
         name: "Portrait Glow",
         category: .portrait,
         instructions: [
@@ -62,6 +65,7 @@ struct PresetLibrary {
     // MARK: - Landscape Presets
 
     static let landscapeVivid = Preset(
+        id: UUID(uuidString: "A1B2C3D4-E5F6-7890-ABCD-EF1234567804")!,
         name: "Vivid Landscape",
         category: .landscape,
         instructions: [
@@ -78,6 +82,7 @@ struct PresetLibrary {
     )
 
     static let landscapeMuted = Preset(
+        id: UUID(uuidString: "A1B2C3D4-E5F6-7890-ABCD-EF1234567805")!,
         name: "Muted Landscape",
         category: .landscape,
         instructions: [
@@ -93,10 +98,11 @@ struct PresetLibrary {
     )
 
     static let landscapeGoldenHour = Preset(
+        id: UUID(uuidString: "A1B2C3D4-E5F6-7890-ABCD-EF1234567806")!,
         name: "Golden Hour",
         category: .landscape,
         instructions: [
-            EditInstruction(type: .temperature, value: 800),
+            EditInstruction(type: .temperature, value: 60),
             EditInstruction(type: .exposure, value: 0.2),
             EditInstruction(type: .highlights, value: -0.3),
             EditInstruction(type: .shadows, value: 0.3),
@@ -111,6 +117,7 @@ struct PresetLibrary {
     // MARK: - Black & White Presets
 
     static let blackAndWhiteClassic = Preset(
+        id: UUID(uuidString: "A1B2C3D4-E5F6-7890-ABCD-EF1234567807")!,
         name: "Classic B&W",
         category: .blackAndWhite,
         instructions: [
@@ -125,6 +132,7 @@ struct PresetLibrary {
     )
 
     static let blackAndWhiteHighContrast = Preset(
+        id: UUID(uuidString: "A1B2C3D4-E5F6-7890-ABCD-EF1234567808")!,
         name: "High Contrast B&W",
         category: .blackAndWhite,
         instructions: [
@@ -141,6 +149,7 @@ struct PresetLibrary {
     )
 
     static let blackAndWhiteSoft = Preset(
+        id: UUID(uuidString: "A1B2C3D4-E5F6-7890-ABCD-EF1234567809")!,
         name: "Soft B&W",
         category: .blackAndWhite,
         instructions: [
@@ -159,6 +168,7 @@ struct PresetLibrary {
     // MARK: - Film Presets
 
     static let filmKodachrome = Preset(
+        id: UUID(uuidString: "A1B2C3D4-E5F6-7890-ABCD-EF1234567810")!,
         name: "Kodachrome",
         category: .film,
         instructions: [
@@ -175,6 +185,7 @@ struct PresetLibrary {
     )
 
     static let filmPortra = Preset(
+        id: UUID(uuidString: "A1B2C3D4-E5F6-7890-ABCD-EF1234567811")!,
         name: "Portra",
         category: .film,
         instructions: [
@@ -192,6 +203,7 @@ struct PresetLibrary {
     )
 
     static let filmFuji = Preset(
+        id: UUID(uuidString: "A1B2C3D4-E5F6-7890-ABCD-EF1234567812")!,
         name: "Fuji Classic",
         category: .film,
         instructions: [
@@ -210,6 +222,7 @@ struct PresetLibrary {
     // MARK: - Vintage Presets
 
     static let vintage70s = Preset(
+        id: UUID(uuidString: "A1B2C3D4-E5F6-7890-ABCD-EF1234567813")!,
         name: "70s Fade",
         category: .vintage,
         instructions: [
@@ -227,6 +240,7 @@ struct PresetLibrary {
     )
 
     static let vintageSepia = Preset(
+        id: UUID(uuidString: "A1B2C3D4-E5F6-7890-ABCD-EF1234567814")!,
         name: "Sepia Tone",
         category: .vintage,
         instructions: [
@@ -244,6 +258,7 @@ struct PresetLibrary {
     // MARK: - Street Presets
 
     static let streetGritty = Preset(
+        id: UUID(uuidString: "A1B2C3D4-E5F6-7890-ABCD-EF1234567815")!,
         name: "Gritty Street",
         category: .street,
         instructions: [
@@ -263,6 +278,7 @@ struct PresetLibrary {
     // MARK: - Dramatic Presets
 
     static let dramaticMoody = Preset(
+        id: UUID(uuidString: "A1B2C3D4-E5F6-7890-ABCD-EF1234567816")!,
         name: "Moody Dark",
         category: .dramatic,
         instructions: [
@@ -282,6 +298,7 @@ struct PresetLibrary {
     // MARK: - Soft Presets
 
     static let softDreamy = Preset(
+        id: UUID(uuidString: "A1B2C3D4-E5F6-7890-ABCD-EF1234567817")!,
         name: "Dreamy Soft",
         category: .soft,
         instructions: [
@@ -301,6 +318,7 @@ struct PresetLibrary {
     // MARK: - Vibrant Presets
 
     static let vibrantPop = Preset(
+        id: UUID(uuidString: "A1B2C3D4-E5F6-7890-ABCD-EF1234567818")!,
         name: "Pop Color",
         category: .vibrant,
         instructions: [

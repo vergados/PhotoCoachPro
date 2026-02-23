@@ -140,6 +140,7 @@ struct CritiqueResult: Codable, Identifiable, Equatable {
         var suggestion: String
         var priority: Priority
         var instruction: EditInstruction?  // Optional pre-configured edit
+        var expectedImprovement: Double?   // Estimated score gain (0.0–1.0)
 
         enum Priority: String, Codable {
             case high = "High"
@@ -147,11 +148,12 @@ struct CritiqueResult: Codable, Identifiable, Equatable {
             case low = "Low"
         }
 
-        init(category: String, suggestion: String, priority: Priority, instruction: EditInstruction? = nil) {
+        init(category: String, suggestion: String, priority: Priority, instruction: EditInstruction? = nil, expectedImprovement: Double? = nil) {
             self.category = category
             self.suggestion = suggestion
             self.priority = priority
             self.instruction = instruction
+            self.expectedImprovement = expectedImprovement
         }
     }
 

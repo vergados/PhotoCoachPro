@@ -42,46 +42,31 @@ actor MetadataHandler {
         format: ExportSettings.ExportFormat,
         sourcePhoto: PhotoRecord
     ) async throws -> Data {
-        // Load original metadata from source photo
-        guard let originalURL = URL(string: sourcePhoto.filePath) else {
-            // No original file, return as-is
-            return imageData
-        }
-
-        let originalMetadata = try await exifReader.readMetadata(from: originalURL)
-
-        // Create mutable data
         let mutableData = NSMutableData(data: imageData)
 
-        // Create image source from exported data
         guard let imageSource = CGImageSourceCreateWithData(imageData as CFData, nil),
               let type = CGImageSourceGetType(imageSource) else {
             throw ExportError.metadataHandlingFailed
         }
 
-        // Create destination
-        guard let destination = CGImageDestinationCreateWithData(
-            mutableData,
-            type,
-            1,
-            nil
-        ) else {
+        guard let destination = CGImageDestinationCreateWithData(mutableData, type, 1, nil) else {
             throw ExportError.metadataHandlingFailed
         }
 
-        // Convert metadata to CFDictionary
-        // Note: PhotoMetadata needs to be converted to dictionary format
-        // For now, use empty metadata to avoid conversion complexity
-        let metadataDict = convertMetadataToCF([:])
-
-        // Add image with metadata
-        if let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) {
-            CGImageDestinationAddImage(destination, cgImage, metadataDict as CFDictionary)
-        } else {
-            throw ExportError.metadataHandlingFailed
+        // Read original metadata directly from source file via CGImageSource
+        var originalMetadataProps: CFDictionary? = nil
+        if !sourcePhoto.filePath.isEmpty {
+            let sourceURL = URL(fileURLWithPath: sourcePhoto.filePath)
+            if let srcSource = CGImageSourceCreateWithURL(sourceURL as CFURL, nil) {
+                originalMetadataProps = CGImageSourceCopyPropertiesAtIndex(srcSource, 0, nil)
+            }
         }
 
-        // Finalize
+        guard let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
+            throw ExportError.metadataHandlingFailed
+        }
+        CGImageDestinationAddImage(destination, cgImage, originalMetadataProps)
+
         guard CGImageDestinationFinalize(destination) else {
             throw ExportError.metadataHandlingFailed
         }
@@ -96,48 +81,33 @@ actor MetadataHandler {
         format: ExportSettings.ExportFormat,
         sourcePhoto: PhotoRecord
     ) async throws -> Data {
-        // Load original metadata
-        guard let originalURL = URL(string: sourcePhoto.filePath) else {
-            return imageData
-        }
-
-        let originalMetadata = try await exifReader.readMetadata(from: originalURL)
-
-        // Filter to basic metadata only (remove GPS)
-        // Note: PhotoMetadata needs proper conversion to dictionary
-        // For now, use empty metadata
-        let basicMetadata: [String: Any] = [:]
-
-        // Create mutable data
         let mutableData = NSMutableData(data: imageData)
 
-        // Create image source
         guard let imageSource = CGImageSourceCreateWithData(imageData as CFData, nil),
               let type = CGImageSourceGetType(imageSource) else {
             throw ExportError.metadataHandlingFailed
         }
 
-        // Create destination
-        guard let destination = CGImageDestinationCreateWithData(
-            mutableData,
-            type,
-            1,
-            nil
-        ) else {
+        guard let destination = CGImageDestinationCreateWithData(mutableData, type, 1, nil) else {
             throw ExportError.metadataHandlingFailed
         }
 
-        // Convert metadata
-        let metadataDict = convertMetadataToCF(basicMetadata)
-
-        // Add image
-        if let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) {
-            CGImageDestinationAddImage(destination, cgImage, metadataDict as CFDictionary)
-        } else {
-            throw ExportError.metadataHandlingFailed
+        // Read original metadata from source file and strip GPS / IPTC
+        var filteredMetadataProps: CFDictionary? = nil
+        if !sourcePhoto.filePath.isEmpty {
+            let sourceURL = URL(fileURLWithPath: sourcePhoto.filePath)
+            if let srcSource = CGImageSourceCreateWithURL(sourceURL as CFURL, nil),
+               let props = CGImageSourceCopyPropertiesAtIndex(srcSource, 0, nil) as? [String: Any] {
+                let filtered = filterToBasicMetadata(props)
+                filteredMetadataProps = filtered as CFDictionary
+            }
         }
 
-        // Finalize
+        guard let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
+            throw ExportError.metadataHandlingFailed
+        }
+        CGImageDestinationAddImage(destination, cgImage, filteredMetadataProps)
+
         guard CGImageDestinationFinalize(destination) else {
             throw ExportError.metadataHandlingFailed
         }

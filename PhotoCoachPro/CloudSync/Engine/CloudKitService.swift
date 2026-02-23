@@ -7,12 +7,15 @@
 
 import Foundation
 import CloudKit
+import Network
 
 /// CloudKit service for record operations
 actor CloudKitService {
     private let container: CKContainer
     private let privateDatabase: CKDatabase
     private let deviceID: String
+    private let _networkMonitor: NWPathMonitor
+    private nonisolated(unsafe) var _networkAvailable: Bool = true
 
     init(containerIdentifier: String = "iCloud.com.photocoachpro") {
         self.container = CKContainer(identifier: containerIdentifier)
@@ -23,6 +26,11 @@ actor CloudKitService {
         // macOS: use a persistent device identifier
         self.deviceID = Self.getOrCreateMacDeviceID()
         #endif
+        self._networkMonitor = NWPathMonitor()
+        self._networkMonitor.pathUpdateHandler = { [self] path in
+            self._networkAvailable = path.status == .satisfied
+        }
+        self._networkMonitor.start(queue: DispatchQueue(label: "com.photocoachpro.network", qos: .utility))
     }
 
     #if os(macOS)
@@ -130,8 +138,29 @@ actor CloudKitService {
         _ = try await privateDatabase.deleteRecord(withID: recordID)
     }
 
-    func deleteBatch(recordIDs: [CKRecord.ID]) async throws {
-        let (_, _) = try await privateDatabase.modifyRecords(saving: [], deleting: recordIDs)
+    @discardableResult
+    func deleteBatch(recordIDs: [CKRecord.ID]) async throws -> [CKRecord.ID] {
+        do {
+            let (_, deleteResults) = try await privateDatabase.modifyRecords(saving: [], deleting: recordIDs)
+            var deleted: [CKRecord.ID] = []
+            for (recordID, result) in deleteResults {
+                switch result {
+                case .success:
+                    deleted.append(recordID)
+                case .failure(let error):
+                    // Log partial failure — caller still receives the successfully deleted IDs
+                    print("[CloudKitService] deleteBatch partial failure for \(recordID.recordName): \(error.localizedDescription)")
+                }
+            }
+            return deleted
+        } catch let ckError as CKError where ckError.code == .partialFailure {
+            // Extract which IDs succeeded from the partial failure userInfo
+            let partialErrors = ckError.userInfo[CKPartialErrorsByItemIDKey] as? [CKRecord.ID: Error] ?? [:]
+            let failed = Set(partialErrors.keys)
+            let succeeded = recordIDs.filter { !failed.contains($0) }
+            print("[CloudKitService] deleteBatch partial failure: \(partialErrors.count) of \(recordIDs.count) failed")
+            return succeeded
+        }
     }
 
     // MARK: - Query Operations
@@ -189,17 +218,59 @@ actor CloudKitService {
         recordType: String,
         serverChangeToken: CKServerChangeToken? = nil
     ) async throws -> (changed: [CKRecord], deleted: [CKRecord.ID], serverChangeToken: CKServerChangeToken?) {
-        // Use CKFetchRecordZoneChangesOperation for efficient delta sync
-        // Simplified implementation - would need full zone tracking in production
+        let zoneID = CKRecordZone.default().zoneID
 
-        let changedRecords: [CKRecord] = []
-        let deletedRecordIDs: [CKRecord.ID] = []
+        var changedRecords: [CKRecord] = []
+        var deletedRecordIDs: [CKRecord.ID] = []
+        var newServerToken: CKServerChangeToken?
 
-        // TODO: Implement using CKFetchRecordZoneChangesOperation
-        // For now, return empty to allow build
-        _ = serverChangeToken // Silence unused warning
+        let config = CKFetchRecordZoneChangesOperation.ZoneConfiguration()
+        config.previousServerChangeToken = serverChangeToken
 
-        return (changedRecords, deletedRecordIDs, nil)
+        let operation = CKFetchRecordZoneChangesOperation(
+            recordZoneIDs: [zoneID],
+            configurationsByRecordZoneID: [zoneID: config]
+        )
+
+        // Accumulate changed records (filtered by recordType)
+        operation.recordWasChangedBlock = { _, result in
+            if case .success(let record) = result, record.recordType == recordType {
+                changedRecords.append(record)
+            }
+        }
+
+        // Accumulate deleted record IDs
+        operation.recordWithIDWasDeletedBlock = { recordID, recordType_ in
+            if recordType_ == recordType {
+                deletedRecordIDs.append(recordID)
+            }
+        }
+
+        // Capture new change token per zone
+        operation.recordZoneChangeTokensUpdatedBlock = { _, token, _ in
+            newServerToken = token
+        }
+
+        // Final token after fetch completes
+        operation.recordZoneFetchResultBlock = { _, result in
+            if case .success(let (token, _, _)) = result {
+                newServerToken = token
+            }
+        }
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            operation.fetchRecordZoneChangesResultBlock = { result in
+                switch result {
+                case .success:
+                    continuation.resume()
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
+            }
+            privateDatabase.add(operation)
+        }
+
+        return (changedRecords, deletedRecordIDs, newServerToken)
     }
 
     // MARK: - Conflict Resolution
@@ -219,8 +290,17 @@ actor CloudKitService {
             return serverRecord
 
         case .keepBoth:
-            // TODO: Implement by creating new CKRecord with duplicate ID
-            // For now, fall through to manual
+            // Create a duplicate of the local record with a new ID so both versions survive
+            let newRecordID = CKRecord.ID(
+                recordName: UUID().uuidString,
+                zoneID: localRecord.recordID.zoneID
+            )
+            let duplicate = CKRecord(recordType: localRecord.recordType, recordID: newRecordID)
+            for key in localRecord.allKeys() {
+                duplicate[key] = localRecord[key]
+            }
+            // Save the duplicate; the server record already exists
+            _ = try await privateDatabase.save(duplicate)
             return serverRecord
 
         case .manual:
@@ -236,7 +316,6 @@ actor CloudKitService {
     }
 
     func isNetworkAvailable() -> Bool {
-        // Simplified - in production, use NWPathMonitor
-        return true
+        _networkAvailable
     }
 }

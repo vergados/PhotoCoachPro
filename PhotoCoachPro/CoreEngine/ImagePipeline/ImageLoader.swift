@@ -48,14 +48,22 @@ actor ImageLoader {
         let originalFilename = PHAssetResource.assetResources(for: asset).first?.originalFilename ?? "image.jpeg"
         let fileType = URL(fileURLWithPath: originalFilename).pathExtension.lowercased()
 
-        // Request original image data via async/await bridge
+        // Request original image data via async/await bridge.
+        // PHImageManager can invoke the completion block more than once (e.g. low-quality
+        // preview then full-quality delivery). NSLock makes the check-and-set of
+        // hasResumed atomic so the continuation is resumed exactly once.
         let imageData: Data = try await withCheckedThrowingContinuation { continuation in
+            let lock = NSLock()
             var hasResumed = false
+
             let options = PHImageRequestOptions()
             options.version = .original
             options.isNetworkAccessAllowed = true
+            options.deliveryMode = .highQualityFormat  // single callback, no progressive delivery
 
             PHImageManager.default().requestImageDataAndOrientation(for: asset, options: options) { data, _, _, _ in
+                lock.lock()
+                defer { lock.unlock() }
                 guard !hasResumed else { return }
                 hasResumed = true
                 if let data = data {
@@ -83,8 +91,9 @@ actor ImageLoader {
 
     // MARK: - Load from Security-Scoped Bookmark
 
-    /// Load a photo from a persisted security-scoped bookmark
-    func loadFromBookmark(data: Data) async throws -> LoadedImage {
+    /// Load a photo from a persisted security-scoped bookmark.
+    /// - Parameter onRefresh: Called with the updated bookmark `Data` when the resolved bookmark was stale.
+    func loadFromBookmark(data: Data, onRefresh: ((Data) -> Void)? = nil) async throws -> LoadedImage {
         var isStale = false
 
         #if os(macOS)
@@ -107,13 +116,29 @@ actor ImageLoader {
         }
         #endif
 
-        if isStale {
-            // TODO: update record with refreshed bookmark
-            print("⚠️ ImageLoader: bookmark is stale for \(resolvedURL.lastPathComponent)")
-        }
-
         let didAccess = resolvedURL.startAccessingSecurityScopedResource()
         defer { if didAccess { resolvedURL.stopAccessingSecurityScopedResource() } }
+
+        // Refresh stale bookmark so the app retains access across launches
+        if isStale, let onRefresh {
+            #if os(macOS)
+            if let refreshed = try? resolvedURL.bookmarkData(
+                options: .withSecurityScope,
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+            ) {
+                onRefresh(refreshed)
+            }
+            #else
+            if let refreshed = try? resolvedURL.bookmarkData(
+                options: [],
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+            ) {
+                onRefresh(refreshed)
+            }
+            #endif
+        }
 
         return try await load(from: resolvedURL)
     }
@@ -130,7 +155,14 @@ actor ImageLoader {
             return try await loadFromAsset(localIdentifier: id)
         case .fileSystem:
             if let bookmark = photo.bookmarkData {
-                return try await loadFromBookmark(data: bookmark)
+                return try await loadFromBookmark(data: bookmark) { refreshed in
+                    // PhotoRecord is a SwiftData @Model and must be mutated on @MainActor.
+                    // The onRefresh closure fires inside ImageLoader (a non-MainActor actor),
+                    // so we dispatch the write via an unstructured Task to avoid a data race.
+                    Task { @MainActor in
+                        photo.bookmarkData = refreshed
+                    }
+                }
             } else {
                 return try await load(from: photo.fileURL)  // legacy path
             }

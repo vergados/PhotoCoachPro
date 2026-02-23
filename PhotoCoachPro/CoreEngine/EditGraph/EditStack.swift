@@ -60,8 +60,14 @@ struct EditStack: Codable, Equatable {
 
     /// Remove instruction by ID
     mutating func remove(id: UUID) {
-        instructions.removeAll { $0.id == id }
-        currentIndex = min(currentIndex, instructions.count - 1)
+        guard let removedIndex = instructions.firstIndex(where: { $0.id == id }) else { return }
+        instructions.remove(at: removedIndex)
+        // If the removed instruction was at or before the current position,
+        // decrement currentIndex so the redo branch is not accidentally activated.
+        if removedIndex <= currentIndex {
+            currentIndex -= 1
+        }
+        currentIndex = max(-1, currentIndex)
     }
 
     /// Undo last instruction

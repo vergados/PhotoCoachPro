@@ -98,6 +98,7 @@ struct CritiqueDashboardView: View {
     enum AnalysisMode {
         case ai       // Full AI coaching
         case quick    // Quick metrics
+        case skills   // Skill tracking dashboard
     }
 
     var body: some View {
@@ -124,6 +125,9 @@ struct CritiqueDashboardView: View {
                             }
                         }
                     }
+            } else if analysisMode == .skills {
+                SkillDashboardView()
+                    .navigationTitle("Skill Tracking")
             } else if photos.isEmpty {
                 emptyState
             } else {
@@ -172,13 +176,16 @@ struct CritiqueDashboardView: View {
                     Picker("Analysis Mode", selection: $analysisMode) {
                         Label("AI Coaching", systemImage: "sparkles").tag(AnalysisMode.ai)
                         Label("Quick Metrics", systemImage: "speedometer").tag(AnalysisMode.quick)
+                        Label("Skills", systemImage: "chart.line.uptrend.xyaxis").tag(AnalysisMode.skills)
                     }
                     .pickerStyle(.segmented)
                     .padding(.horizontal)
 
                     Text(analysisMode == .ai ?
                          "In-depth AI analysis with compositional and aesthetic critique" :
-                         "Fast technical metrics (color, sharpness, exposure)")
+                         analysisMode == .quick ?
+                         "Fast technical metrics (color, sharpness, exposure)" :
+                         "Track your photography skill progress over time")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.horizontal)

@@ -11,6 +11,7 @@ import Foundation
 @MainActor
 class EditHistoryManager: ObservableObject {
     @Published private(set) var editRecord: EditRecord
+    @Published private(set) var lastSaveError: Error?
 
     private let database: LocalDatabase
 
@@ -113,11 +114,23 @@ class EditHistoryManager: ObservableObject {
 
     // MARK: - Persistence
 
+    private var pendingSaveTask: Task<Void, Never>?
+
     private func save() {
-        do {
-            try database.context.save()
-        } catch {
-            print("Failed to save edit history: \(error)")
+        // Debounce: cancel any in-flight save and schedule a new one after 500 ms.
+        // Calling context.save() synchronously on every mutation (add/update/undo/redo)
+        // blocks the main thread on every slider adjustment or keystroke.
+        pendingSaveTask?.cancel()
+        pendingSaveTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .milliseconds(500)) } catch { return }
+            guard let self, !Task.isCancelled else { return }
+            do {
+                try self.database.context.save()
+                self.lastSaveError = nil
+            } catch {
+                self.lastSaveError = error
+                print("Failed to save edit history: \(error)")
+            }
         }
     }
 

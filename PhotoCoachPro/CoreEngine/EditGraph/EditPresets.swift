@@ -50,8 +50,22 @@ struct EditPreset: Codable, Identifiable, Equatable {
 actor EditPresetManager {
     private var presets: [EditPreset] = []
 
+    // MARK: - Storage URL
+
+    private static var presetsFileURL: URL {
+        let support = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask
+        ).first!
+        let dir = support.appendingPathComponent("PhotoCoachPro", isDirectory: true)
+        try? FileManager.default.createDirectory(
+            at: dir, withIntermediateDirectories: true
+        )
+        return dir.appendingPathComponent("editPresets.json")
+    }
+
     init() {
         loadDefaultPresets()
+        loadUserPresetsFromDisk()
     }
 
     // MARK: - Access
@@ -76,11 +90,12 @@ actor EditPresetManager {
         } else {
             presets.append(preset)
         }
-        // TODO: Persist to disk
+        persistUserPresets()
     }
 
     func delete(id: UUID) {
         presets.removeAll { $0.id == id && $0.isUserCreated }
+        persistUserPresets()
     }
 
     // MARK: - Clipboard Operations
@@ -97,6 +112,22 @@ actor EditPresetManager {
 
     var hasClipboard: Bool {
         clipboard != nil
+    }
+
+    // MARK: - Disk Persistence
+
+    private func loadUserPresetsFromDisk() {
+        guard let data = try? Data(contentsOf: Self.presetsFileURL),
+              let saved = try? JSONDecoder().decode([EditPreset].self, from: data) else { return }
+        for preset in saved where !presets.contains(where: { $0.id == preset.id }) {
+            presets.append(preset)
+        }
+    }
+
+    private func persistUserPresets() {
+        let userPresets = presets.filter { $0.isUserCreated }
+        guard let data = try? JSONEncoder().encode(userPresets) else { return }
+        try? data.write(to: Self.presetsFileURL, options: .atomic)
     }
 
     // MARK: - Default Presets

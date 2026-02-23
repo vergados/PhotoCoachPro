@@ -19,12 +19,13 @@ actor ImageAnalyzer {
     private let storyAnalyzer: StoryAnalyzer
 
     init() {
-        self.compositionAnalyzer = CompositionAnalyzer()
-        self.lightAnalyzer = LightAnalyzer()
-        self.focusAnalyzer = FocusAnalyzer()
-        self.colorAnalyzer = ColorAnalyzer()
-        self.backgroundAnalyzer = BackgroundAnalyzer()
-        self.storyAnalyzer = StoryAnalyzer()
+        let sharedContext = CIContext(options: [.workingColorSpace: CGColorSpace(name: CGColorSpace.displayP3)!])
+        self.compositionAnalyzer = CompositionAnalyzer(context: sharedContext)
+        self.lightAnalyzer = LightAnalyzer(context: sharedContext)
+        self.focusAnalyzer = FocusAnalyzer(context: sharedContext)
+        self.colorAnalyzer = ColorAnalyzer(context: sharedContext)
+        self.backgroundAnalyzer = BackgroundAnalyzer(context: sharedContext)
+        self.storyAnalyzer = StoryAnalyzer(context: sharedContext)
     }
 
     // MARK: - Analysis
@@ -97,7 +98,10 @@ actor ImageAnalyzer {
             categories.story.score
         ]
 
-        return zip(scores, weights).reduce(0) { $0 + ($1.0 * $1.1) }
+        let weightSum = weights.reduce(0, +)
+        guard weightSum > 0 else { return 0.5 }
+        let weightedSum = zip(scores, weights).map { score, weight in score * weight }.reduce(0, +)
+        return weightedSum / weightSum
     }
 
     // MARK: - Summary Generation
@@ -106,29 +110,36 @@ actor ImageAnalyzer {
         let rating = CritiqueResult.CategoryScore.Rating(score: overallScore)
         let strongest = categories.strongestCategory
         let weakest = categories.weakestCategory
+        let scorePercent = Int(overallScore * 100)
 
         var summary = ""
 
-        // Overall assessment
+        // Score-specific opening with concrete number
         switch rating {
         case .excellent:
-            summary = "Excellent photo with strong technical execution. "
+            summary = "Outstanding work — this photo scores \(scorePercent)/100 overall. "
         case .good:
-            summary = "Good photo with solid fundamentals. "
+            summary = "Solid photo at \(scorePercent)/100 with good technical control. "
         case .fair:
-            summary = "Fair photo with room for improvement. "
+            summary = "A developing photo at \(scorePercent)/100 with clear areas to grow. "
         case .needsWork:
-            summary = "Photo needs work in several key areas. "
+            summary = "Photo scores \(scorePercent)/100 and needs targeted improvement. "
         case .poor:
-            summary = "Photo has significant technical issues. "
+            summary = "Photo scores \(scorePercent)/100. Focus on the fundamentals first. "
         }
 
-        // Strongest area
-        summary += "Particularly strong in \(strongest.name.lowercased()). "
+        // Strongest area with its actual score
+        let strongestPercent = Int(strongest.score.score * 100)
+        summary += "\(strongest.name) is your strongest element at \(strongestPercent)%. "
 
-        // Weakest area
+        // Weakest area with a specific detected issue if available
+        let weakestPercent = Int(weakest.score.score * 100)
         if weakest.score.score < 0.7 {
-            summary += "Consider improving \(weakest.name.lowercased()) for better overall impact."
+            if let topIssue = weakest.score.detectedIssues.first {
+                summary += "\(weakest.name) (\(weakestPercent)%) needs attention — specifically \(topIssue)."
+            } else {
+                summary += "\(weakest.name) (\(weakestPercent)%) has the most room for improvement."
+            }
         }
 
         return summary
@@ -247,28 +258,33 @@ actor ImageAnalyzer {
 
     private func generatePracticeRecommendation(categories: CritiqueResult.CategoryBreakdown) -> String {
         let weakest = categories.weakestCategory
+        let weakestPercent = Int(weakest.score.score * 100)
+        let topIssue = weakest.score.detectedIssues.first
+
+        // Build a contextual clause from the detected issue if available
+        let issueContext: String = topIssue.map { " Detected issue: \($0)." } ?? ""
 
         switch weakest.name {
         case "Composition":
-            return "Practice: Shoot 20 images this week focusing on rule of thirds and leading lines. Review each before shooting the next."
+            return "Composition is at \(weakestPercent)%.\(issueContext) Practice: Before each shot, actively place your main subject using the rule of thirds or a strong leading line. Shoot 15 frames this week with deliberate placement — review each one before moving on."
 
         case "Light":
-            return "Practice: Study the quality of light at different times of day. Shoot the same subject in morning, noon, and evening light."
+            return "Lighting is at \(weakestPercent)%.\(issueContext) Practice: Photograph the same subject at dawn, midday, and golden hour. Compare how direction and quality of light changes mood and texture. Pay attention to where shadows fall."
 
         case "Focus":
-            return "Practice: Experiment with different apertures (f/2.8, f/5.6, f/11) to understand depth of field. Focus on critical sharpness."
+            return "Focus is at \(weakestPercent)%.\(issueContext) Practice: Shoot the same composition at f/2.8, f/5.6, and f/11. Study how depth of field changes subject separation and background clarity. Use single-point autofocus on your main subject."
 
         case "Color":
-            return "Practice: Shoot a color wheel of subjects (red, orange, yellow, green, blue, purple). Learn how colors interact."
+            return "Color is at \(weakestPercent)%.\(issueContext) Practice: Set a manual white balance using a gray card for your next five sessions. Compare the corrected images against auto white balance results. Notice how neutral tones affect the overall palette."
 
         case "Background":
-            return "Practice: Before each shot, scan the background for distracting elements. Shoot 10 images with deliberate background management."
+            return "Background is at \(weakestPercent)%.\(issueContext) Practice: Before pressing the shutter, pause and scan every edge of the frame. Shoot 10 images with the sole goal of a clean, uncluttered background — move your position or change focal length as needed."
 
         case "Story":
-            return "Practice: Tell a visual story with 3 images. Think about what emotion or message you want to convey before shooting."
+            return "Story/impact is at \(weakestPercent)%.\(issueContext) Practice: Before each shot, write one sentence describing the emotion or message you want to convey. Then ask: does every element in the frame support that sentence? Remove or reframe anything that does not."
 
         default:
-            return "Practice: Review your best photos. Identify what makes them work. Try to replicate those qualities in new images."
+            return "Overall score: \(weakestPercent)%. Review your five strongest images and identify what they have in common. Set one specific intention for your next shoot based on that pattern."
         }
     }
 }

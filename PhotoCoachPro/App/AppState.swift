@@ -47,6 +47,15 @@ class AppState: ObservableObject {
     // Quick metrics analyzer (lightweight, no AI/ML)
     let quickMetricsAnalyzer: QuickMetricsAnalyzer
 
+    // Masking engine
+    let autoMaskDetector: AutoMaskDetector
+    let maskRefinementBrush: MaskRefinementBrush
+
+    // Masking state
+    @Published var activeMasks: [MaskLayer] = []
+    @Published var isMaskDetecting = false
+    @Published var selectedMaskID: UUID?
+
     // Skill history (persisted via SwiftData)
     @Published var skillHistory: SkillHistory
     private let skillUserID: UUID
@@ -61,6 +70,8 @@ class AppState: ObservableObject {
     @Published var currentEditHistory: EditHistoryManager?
     @Published var currentImage: CIImage?
     @Published var renderedImage: PlatformImage?
+    @Published var renderedCIImage: CIImage?
+    @Published var renderCount: Int = 0
 
     // UI state
     @Published var isLoading = false
@@ -131,6 +142,10 @@ class AppState: ObservableObject {
 
         // Quick metrics analyzer
         self.quickMetricsAnalyzer = QuickMetricsAnalyzer()
+
+        // Masking engines
+        self.autoMaskDetector = AutoMaskDetector()
+        self.maskRefinementBrush = MaskRefinementBrush()
 
         // Subscribe to cloud sync setting changes (dropFirst prevents double-init on launch)
         syncSettingsCancellable = PrivacySettings.shared.$cloudSyncEnabled
@@ -284,6 +299,10 @@ class AppState: ObservableObject {
             currentPhoto = photo
             currentEditHistory = historyManager
 
+            // Clear masks from previous session
+            activeMasks = []
+            selectedMaskID = nil
+
             // Render current state
             await renderCurrentImage()
 
@@ -303,27 +322,50 @@ class AppState: ObservableObject {
         }
 
         let instructions = history.editStack.activeInstructions
-        let rendered = await editGraphEngine.render(source: source, instructions: instructions)
+        let enabledMasks = activeMasks.filter { $0.enabled }
+        let rendered: CIImage
+
+        if enabledMasks.isEmpty {
+            rendered = await editGraphEngine.render(source: source, instructions: instructions)
+        } else {
+            let sourceSize = source.extent.size
+            var maskDict: [UUID: CIImage] = [:]
+            for mask in enabledMasks {
+                if let processed = mask.processedMask(sourceSize: sourceSize) {
+                    maskDict[mask.id] = processed
+                }
+            }
+            rendered = await editGraphEngine.render(source: source, instructions: instructions, masks: maskDict)
+        }
 
         // Render to platform image for display
         renderedImage = await imageRenderer.renderPlatformImage(from: rendered)
+        renderedCIImage = rendered
+        renderCount += 1
     }
 
     func addEdit(_ instruction: EditInstruction) async {
         guard let history = currentEditHistory else { return }
 
-        // Check if the most recent active instruction is the same type
+        // Inject selected mask ID so edits apply selectively
+        var mutableInstruction = instruction
+        if let maskID = selectedMaskID {
+            mutableInstruction.maskID = maskID
+        }
+
+        // Check if the most recent active instruction is the same type and mask
         // If so, update it instead of adding a new one
-        if let existing = history.editStack.mostRecent(ofType: instruction.type),
-           history.editStack.activeInstructions.last?.type == instruction.type {
+        if let existing = history.editStack.mostRecent(ofType: mutableInstruction.type),
+           existing.maskID == mutableInstruction.maskID,
+           history.editStack.activeInstructions.last?.type == mutableInstruction.type {
             // Update the existing instruction with the new value
             var updatedInstruction = existing
-            updatedInstruction.value = instruction.value
+            updatedInstruction.value = mutableInstruction.value
             updatedInstruction.timestamp = Date()
             history.updateInstruction(updatedInstruction)
         } else {
             // Add as a new instruction
-            history.addInstruction(instruction)
+            history.addInstruction(mutableInstruction)
         }
 
         await renderCurrentImage()
@@ -337,6 +379,107 @@ class AppState: ObservableObject {
     func redo() async {
         currentEditHistory?.redo()
         await renderCurrentImage()
+    }
+
+    // MARK: - Masking
+
+    func addSubjectMask() async {
+        guard let image = currentImage else { return }
+        isMaskDetecting = true
+        do {
+            let mask = try await autoMaskDetector.detectSubject(in: image)
+            activeMasks.append(mask)
+            selectedMaskID = mask.id
+            await renderCurrentImage()
+        } catch {
+            errorMessage = "Subject detection failed: \(error.localizedDescription)"
+        }
+        isMaskDetecting = false
+    }
+
+    func addSkyMask() async {
+        guard let image = currentImage else { return }
+        isMaskDetecting = true
+        do {
+            let mask = try await autoMaskDetector.detectSky(in: image)
+            activeMasks.append(mask)
+            selectedMaskID = mask.id
+            await renderCurrentImage()
+        } catch {
+            errorMessage = "Sky detection failed: \(error.localizedDescription)"
+        }
+        isMaskDetecting = false
+    }
+
+    func addBackgroundMask() async {
+        guard let image = currentImage else { return }
+        isMaskDetecting = true
+        do {
+            let mask = try await autoMaskDetector.detectBackground(in: image)
+            activeMasks.append(mask)
+            selectedMaskID = mask.id
+            await renderCurrentImage()
+        } catch {
+            errorMessage = "Background detection failed: \(error.localizedDescription)"
+        }
+        isMaskDetecting = false
+    }
+
+    func addGradientMask() async {
+        guard let image = currentImage else { return }
+        let size = image.extent.size
+        let extent = CGRect(origin: .zero, size: size)
+
+        guard let gradientFilter = CIFilter(name: "CILinearGradient") else { return }
+        gradientFilter.setValue(CIVector(x: 0, y: size.height), forKey: "inputPoint0")
+        gradientFilter.setValue(CIVector(x: 0, y: 0), forKey: "inputPoint1")
+        gradientFilter.setValue(CIColor.white, forKey: "inputColor0")
+        gradientFilter.setValue(CIColor.black, forKey: "inputColor1")
+
+        guard let gradientImage = gradientFilter.outputImage?.cropped(to: extent) else { return }
+
+        let mask = MaskLayer(name: "Gradient (Top→Bottom)", type: .gradient, maskImage: gradientImage)
+        activeMasks.append(mask)
+        selectedMaskID = mask.id
+        await renderCurrentImage()
+    }
+
+    func addLuminanceMask(minLuminance: Double = 0.3, maxLuminance: Double = 1.0) async {
+        guard let image = currentImage else { return }
+        isMaskDetecting = true
+        let mask = await autoMaskDetector.maskFromLuminanceRange(
+            in: image,
+            minLuminance: minLuminance,
+            maxLuminance: maxLuminance
+        )
+        activeMasks.append(mask)
+        selectedMaskID = mask.id
+        await renderCurrentImage()
+        isMaskDetecting = false
+    }
+
+    func removeMask(id: UUID) async {
+        activeMasks.removeAll { $0.id == id }
+        if selectedMaskID == id { selectedMaskID = nil }
+        await renderCurrentImage()
+    }
+
+    func toggleMask(id: UUID) async {
+        if let index = activeMasks.firstIndex(where: { $0.id == id }) {
+            activeMasks[index].enabled.toggle()
+            await renderCurrentImage()
+        }
+    }
+
+    func updateMask(_ mask: MaskLayer) async {
+        if let index = activeMasks.firstIndex(where: { $0.id == mask.id }) {
+            activeMasks[index] = mask
+            await renderCurrentImage()
+        }
+    }
+
+    func selectMask(id: UUID?) {
+        selectedMaskID = id
     }
 
     // MARK: - Skill History

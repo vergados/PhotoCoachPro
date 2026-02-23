@@ -11,6 +11,7 @@ import SwiftUI
 struct SyncStatusView: View {
     @State private var status: SyncStatus
     @State private var showDetails = false
+    @State private var showSyncSettings = false
     private let manager: SyncManager
 
     init(manager: SyncManager = SyncManager(), status: SyncStatus = SyncStatus()) {
@@ -32,6 +33,9 @@ struct SyncStatusView: View {
         .background(Color(NSColor.windowBackgroundColor))
         .task {
             await loadStatus()
+        }
+        .sheet(isPresented: $showSyncSettings) {
+            SyncSettingsView()
         }
     }
 
@@ -195,7 +199,7 @@ struct SyncStatusView: View {
                 .disabled(!status.canSync)
 
                 // Settings button
-                Button(action: { }) {
+                Button(action: { showSyncSettings = true }) {
                     Image(systemName: "gear")
                         .font(.subheadline)
                         .padding()
