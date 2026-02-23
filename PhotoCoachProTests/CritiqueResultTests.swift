@@ -1,3 +1,8 @@
+//
+//  CritiqueResultTests.swift
+//  PhotoCoachProTests
+//
+
 import XCTest
 @testable import PhotoCoachPro
 
@@ -34,9 +39,12 @@ final class CritiqueResultTests: XCTestCase {
 
     // MARK: - Computed overallRating
 
-    func testOverallRatingDerivedFromScore() {
+    func testOverallRatingExcellent() {
         XCTAssertEqual(makeResult(score: 0.95).overallRating, .excellent)
-        XCTAssertEqual(makeResult(score: 0.3).overallRating,  .poor)
+    }
+
+    func testOverallRatingPoor() {
+        XCTAssertEqual(makeResult(score: 0.3).overallRating, .poor)
     }
 
     // MARK: - Helpers

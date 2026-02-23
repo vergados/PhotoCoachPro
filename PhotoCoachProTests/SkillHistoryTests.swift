@@ -1,10 +1,14 @@
+//
+//  SkillHistoryTests.swift
+//  PhotoCoachProTests
+//
+
 import XCTest
 @testable import PhotoCoachPro
 
 final class SkillHistoryTests: XCTestCase {
 
-    // Bug #96: progressReport milestones filter is `achievedAt >= startDate`
-    // Missing upper bound: future milestones incorrectly included.
+    // Bug #96 (fixed): progressReport milestones filter now has upper bound <= now.
 
     func testFutureMilestoneExcludedFromReport() {
         var history = SkillHistory(userID: UUID())
@@ -12,11 +16,12 @@ final class SkillHistoryTests: XCTestCase {
             category: .composition,
             achievedScore: 0.9,
             achievedAt: Date().addingTimeInterval(60 * 60 * 24 * 30), // 30 days in future
-            type: .expert
+            type: .expert,
+            photoID: nil
         ))
         let report = history.progressReport(days: 7)
         XCTAssertEqual(report.milestonesAchieved, 0,
-                       "Future milestones must not appear in progressReport — BUG #96")
+                       "Future milestones must not appear in progressReport")
     }
 
     func testRecentMilestoneIncludedInReport() {
@@ -25,7 +30,8 @@ final class SkillHistoryTests: XCTestCase {
             category: .composition,
             achievedScore: 0.7,
             achievedAt: Date().addingTimeInterval(-60 * 60 * 24 * 3), // 3 days ago
-            type: .competent
+            type: .competent,
+            photoID: nil
         ))
         let report = history.progressReport(days: 7)
         XCTAssertEqual(report.milestonesAchieved, 1)
@@ -37,7 +43,8 @@ final class SkillHistoryTests: XCTestCase {
             category: .composition,
             achievedScore: 0.7,
             achievedAt: Date().addingTimeInterval(-60 * 60 * 24 * 30), // 30 days ago
-            type: .competent
+            type: .competent,
+            photoID: nil
         ))
         let report = history.progressReport(days: 7)
         XCTAssertEqual(report.milestonesAchieved, 0,

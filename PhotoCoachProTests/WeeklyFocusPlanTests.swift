@@ -1,10 +1,14 @@
+//
+//  WeeklyFocusPlanTests.swift
+//  PhotoCoachProTests
+//
+
 import XCTest
 @testable import PhotoCoachPro
 
 final class WeeklyFocusPlanTests: XCTestCase {
 
-    // Bug #89: filter was `difficulty == .intermediate` (constant true for intermediate requests).
-    // Fix:     `$0.difficulty == .intermediate` (checks each exercise's difficulty).
+    // Bug #89 (fixed): exercise difficulty filter was comparing a constant instead of each exercise's difficulty.
 
     func testGeneratedPlanHasExercises() {
         let history = SkillHistory(userID: UUID())
@@ -13,8 +17,7 @@ final class WeeklyFocusPlanTests: XCTestCase {
     }
 
     func testBeginnerHistoryYieldsBeginnerOrIntermediateExercises() {
-        // Empty history → all skills at 0.5 → difficulty = .beginner
-        // Filter must return only beginner and intermediate exercises (never advanced)
+        // Empty history → no measurements → weakest skill → beginner-level exercises expected.
         let history = SkillHistory(userID: UUID())
         let plan = WeeklyFocusPlan.generate(for: history)
         for exercise in plan.exercises {
@@ -26,8 +29,7 @@ final class WeeklyFocusPlanTests: XCTestCase {
     }
 
     func testCompletionRate() {
-        let history = SkillHistory(userID: UUID())
-        var plan = WeeklyFocusPlan.generate(for: history)
+        var plan = WeeklyFocusPlan.generate(for: SkillHistory(userID: UUID()))
         XCTAssertEqual(plan.completionRate, 0)
         guard let first = plan.exercises.first else {
             XCTFail("Plan must have at least one exercise"); return

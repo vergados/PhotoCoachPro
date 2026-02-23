@@ -1,3 +1,8 @@
+//
+//  ExportSettingsTests.swift
+//  PhotoCoachProTests
+//
+
 import XCTest
 @testable import PhotoCoachPro
 import CoreGraphics
@@ -26,7 +31,7 @@ final class ExportSettingsTests: XCTestCase {
         }
     }
 
-    // MARK: - Resolution (Bug #94 — UNFIXED, expect FAIL)
+    // MARK: - Resolution (Bug #94 — fixed)
 
     func testLargeIs4K() {
         XCTAssertEqual(ExportSettings.ResolutionOption.large.maxDimension, 3840)
@@ -37,16 +42,15 @@ final class ExportSettingsTests: XCTestCase {
     }
 
     func testMediumIsTrue2K() {
-        // "Medium (2K)" should return 2048. Currently returns 2560 — BUG #94
         XCTAssertEqual(ExportSettings.ResolutionOption.medium.maxDimension, 2048,
-                       "Medium resolution labeled '2K' must be 2048px, not 2560px")
+                       "Medium resolution labeled '2K' must be 2048px")
     }
 
     func testOriginalHasNoMaxDimension() {
         XCTAssertNil(ExportSettings.ResolutionOption.original.maxDimension)
     }
 
-    // MARK: - ExportJob lifecycle (Bug #95 — UNFIXED, expect FAIL)
+    // MARK: - ExportJob lifecycle (Bug #95 — fixed)
 
     func testCompleteSetProgressToOne() {
         var job = makeJob()
@@ -57,12 +61,10 @@ final class ExportSettingsTests: XCTestCase {
     }
 
     func testCancelResetsProgress() {
-        // cancel() must reset progress to 0.0 — BUG #95 (currently leaves it at mid-flight value)
         var job = makeJob()
         job.updateProgress(0.6)
         job.cancel()
-        XCTAssertEqual(job.progress, 0.0,
-                       "cancel() must reset progress to 0.0")
+        XCTAssertEqual(job.progress, 0.0, "cancel() must reset progress to 0.0")
         XCTAssertEqual(job.status, .cancelled)
     }
 
