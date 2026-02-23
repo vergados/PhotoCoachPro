@@ -7,6 +7,7 @@
 
 import Foundation
 import CoreImage
+import Vision
 
 /// Analyzes focus and sharpness quality
 actor FocusAnalyzer {
@@ -17,12 +18,16 @@ actor FocusAnalyzer {
     }
 
     func analyze(_ image: CIImage) async throws -> CritiqueResult.CategoryScore {
-        var score: Double = 0.5
+        var score: Double = 0.0
         var issues: [String] = []
         var strengths: [String] = []
 
+        // Crop to the primary salient region so sharpness is measured on the
+        // subject, not on a blurred background or empty corners.
+        let subjectImage = saliencyBoundedRegion(image)
+
         // Analyze overall sharpness
-        let sharpnessScore = analyzeSharpness(image)
+        let sharpnessScore = analyzeSharpness(subjectImage)
         score += sharpnessScore * 0.6
 
         if sharpnessScore > 0.7 {
@@ -32,7 +37,7 @@ actor FocusAnalyzer {
         }
 
         // Analyze edge detail
-        let edgeScore = analyzeEdgeDetail(image)
+        let edgeScore = analyzeEdgeDetail(subjectImage)
         score += edgeScore * 0.4
 
         if edgeScore < 0.4 {
@@ -53,35 +58,94 @@ actor FocusAnalyzer {
         )
     }
 
+    // MARK: - Subject Region
+
+    /// Returns the image cropped to its primary salient region.
+    /// Falls back to the full image when saliency detection fails or finds nothing.
+    private func saliencyBoundedRegion(_ image: CIImage) -> CIImage {
+        guard let cgImage = context.createCGImage(image, from: image.extent) else {
+            return image
+        }
+
+        let request = VNGenerateAttentionBasedSaliencyImageRequest()
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+        do {
+            try handler.perform([request])
+        } catch {
+            return image
+        }
+
+        guard let result  = request.results?.first,
+              let objects = result.salientObjects,
+              let primary = objects.first else { return image }
+
+        // VN bounding box uses bottom-left origin — same as CIImage — so the
+        // mapping from normalized coordinates to pixel coordinates is direct.
+        let ext = image.extent
+        let box = primary.boundingBox
+        let cropRect = CGRect(
+            x: ext.minX + box.minX * ext.width,
+            y: ext.minY + box.minY * ext.height,
+            width:  box.width  * ext.width,
+            height: box.height * ext.height
+        )
+        let clipped = cropRect.intersection(ext)
+        guard !clipped.isEmpty else { return image }
+        return image.cropped(to: clipped)
+    }
+
     // MARK: - Sharpness Analysis
 
+    /// Laplacian Variance Method: variance = E[L²] − E[L]²
+    /// High variance → crisp edges; low variance → blurry.
     private func analyzeSharpness(_ image: CIImage) -> Double {
-        // Use Laplacian variance to measure sharpness
+        // Apply Laplacian edge-detection kernel
         let laplacian = image.applyingFilter("CIConvolution3X3", parameters: [
             "inputWeights": CIVector(values: [0, 1, 0, 1, -4, 1, 0, 1, 0], count: 9)
         ])
 
-        // Calculate variance
-        guard let areaMax = CIFilter(name: "CIAreaMaximum") else { return 0.5 }
-        areaMax.setValue(laplacian, forKey: kCIInputImageKey)
-        areaMax.setValue(CIVector(cgRect: laplacian.extent), forKey: kCIInputExtentKey)
+        // Render to a 128×128 tile so runtime is bounded regardless of image size
+        let tileSize = 128
+        let extent   = laplacian.extent
+        guard extent.width > 0, extent.height > 0 else { return 0.5 }
 
-        guard let outputImage = areaMax.outputImage else { return 0.5 }
+        let scaleX = CGFloat(tileSize) / extent.width
+        let scaleY = CGFloat(tileSize) / extent.height
+        let scaled = laplacian.transformed(
+            by: CGAffineTransform(translationX: -extent.minX, y: -extent.minY)
+                .concatenating(CGAffineTransform(scaleX: scaleX, y: scaleY))
+        )
 
-        var bitmap = [Float](repeating: 0, count: 4)
-        context.render(outputImage, toBitmap: &bitmap, rowBytes: 4 * MemoryLayout<Float>.size, bounds: CGRect(x: 0, y: 0, width: 1, height: 1), format: .RGBAf, colorSpace: nil)
+        let pixelCount = tileSize * tileSize
+        var bitmap = [Float](repeating: 0, count: pixelCount * 4)
+        context.render(scaled,
+                       toBitmap: &bitmap,
+                       rowBytes: tileSize * 4 * MemoryLayout<Float>.size,
+                       bounds: CGRect(x: 0, y: 0, width: tileSize, height: tileSize),
+                       format: .RGBAf,
+                       colorSpace: nil)
 
-        let variance = Double(bitmap[0])
+        // Accumulate sum and sum-of-squares from the R channel
+        var sum:   Double = 0
+        var sumSq: Double = 0
+        for i in stride(from: 0, to: pixelCount * 4, by: 4) {
+            let v  = Double(bitmap[i])
+            sum   += v
+            sumSq += v * v
+        }
+        let mean     = sum   / Double(pixelCount)
+        let variance = sumSq / Double(pixelCount) - mean * mean
 
-        // Normalize (typical sharp images have variance > 0.1)
-        if variance > 0.15 {
-            return 1.0
-        } else if variance > 0.1 {
-            return 0.8
-        } else if variance > 0.05 {
-            return 0.6
-        } else {
-            return 0.3
+        // Smooth piecewise ramp calibrated to Laplacian variance on a float [0,1] image
+        switch variance {
+        case 0.006...:
+            return 1.00
+        case 0.002..<0.006:
+            return 0.80 + ((variance - 0.002) / 0.004) * 0.20    // 0.80 → 1.00
+        case 0.0003..<0.002:
+            return 0.50 + ((variance - 0.0003) / 0.0017) * 0.30  // 0.50 → 0.80
+        default:
+            return max(0.20, (variance / 0.0003) * 0.50)          // 0.20 → 0.50
         }
     }
 
@@ -103,15 +167,18 @@ actor FocusAnalyzer {
 
         let edgeDensity = Double(bitmap[0]) / 255.0
 
-        // Good detail typically has edge density of 0.15-0.3
-        if edgeDensity >= 0.15 && edgeDensity <= 0.35 {
-            return 1.0
-        } else if edgeDensity < 0.1 {
-            return 0.4  // Too soft
-        } else if edgeDensity > 0.5 {
-            return 0.5  // Too much noise/over-sharpened
-        } else {
-            return 0.7
+        // Smooth piecewise ramp — optimal zone 0.20–0.35, soft floor 0.40, noise floor 0.50
+        switch edgeDensity {
+        case ..<0.10:
+            return 0.40 + (edgeDensity / 0.10) * 0.30              // 0.40 → 0.70
+        case 0.10..<0.20:
+            return 0.70 + ((edgeDensity - 0.10) / 0.10) * 0.30    // 0.70 → 1.00
+        case 0.20..<0.35:
+            return 1.00                                              // optimal zone
+        case 0.35..<0.50:
+            return 1.00 - ((edgeDensity - 0.35) / 0.15) * 0.50    // 1.00 → 0.50
+        default:
+            return 0.50                                              // over-sharpened floor
         }
     }
 

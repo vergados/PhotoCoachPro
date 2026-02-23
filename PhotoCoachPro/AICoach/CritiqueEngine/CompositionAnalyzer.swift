@@ -20,7 +20,7 @@ actor CompositionAnalyzer {
     // MARK: - Analysis
 
     func analyze(_ image: CIImage) async throws -> CritiqueResult.CategoryScore {
-        var score: Double = 0.5  // Start neutral
+        var score: Double = 0.0
         var issues: [String] = []
         var strengths: [String] = []
 
@@ -93,14 +93,23 @@ actor CompositionAnalyzer {
         // Check if saliency is concentrated (good) or scattered (bad)
         let totalArea = salientObjects.reduce(0.0) { $0 + $1.boundingBox.width * $1.boundingBox.height }
 
-        // Ideal: one or two salient regions covering 10-40% of image
+        // Smooth bell: ramps up to peak (10–35% area), then tapers — no cliff edges
         let concentrationScore: Double
-        if totalArea > 0.1 && totalArea < 0.4 {
-            concentrationScore = 1.0
-        } else if totalArea < 0.1 {
-            concentrationScore = 0.5  // Too small
-        } else {
-            concentrationScore = 0.6  // Too large/scattered
+        switch totalArea {
+        case ..<0.03:
+            // Tiny or absent subject: ramp 0.30 → 0.50
+            concentrationScore = 0.30 + (totalArea / 0.03) * 0.20
+        case 0.03..<0.10:
+            // Approaching ideal: ramp 0.50 → 1.00
+            concentrationScore = 0.50 + ((totalArea - 0.03) / 0.07) * 0.50
+        case 0.10..<0.35:
+            concentrationScore = 1.00  // Ideal zone
+        case 0.35..<0.65:
+            // Gently tapers: 1.00 at 35% → 0.50 at 65%
+            concentrationScore = 1.00 - ((totalArea - 0.35) / 0.30) * 0.50
+        default:
+            // Heavily scattered: continues falling to a floor of 0.30
+            concentrationScore = max(0.30, 0.50 - (totalArea - 0.65) * 0.67)
         }
 
         return concentrationScore
@@ -110,26 +119,64 @@ actor CompositionAnalyzer {
 
     private func analyzeBalance(_ image: CIImage) -> Double {
         let extent = image.extent
+        guard extent.width > 0, extent.height > 0 else { return 0.5 }
 
-        // Simplified: analyze left vs right weight
-        // In production, would use Vision to detect objects and calculate visual weight
+        let hw = extent.width / 2
+        let hh = extent.height / 2
 
-        // For now, use a heuristic based on image brightness distribution
-        let leftHalf = image.cropped(to: CGRect(x: extent.minX, y: extent.minY, width: extent.width / 2, height: extent.height))
-        let rightHalf = image.cropped(to: CGRect(x: extent.midX, y: extent.minY, width: extent.width / 2, height: extent.height))
+        // --- Brightness-weighted centroid via four quadrants ---
+        // CoreImage Y-axis: minY = bottom, maxY = top
+        let tlRect = CGRect(x: extent.minX,      y: extent.minY + hh, width: hw, height: hh)
+        let trRect = CGRect(x: extent.minX + hw, y: extent.minY + hh, width: hw, height: hh)
+        let blRect = CGRect(x: extent.minX,      y: extent.minY,      width: hw, height: hh)
+        let brRect = CGRect(x: extent.minX + hw, y: extent.minY,      width: hw, height: hh)
 
-        let leftBrightness = calculateAverageBrightness(leftHalf)
-        let rightBrightness = calculateAverageBrightness(rightHalf)
+        let tlB = calculateAverageBrightness(image.cropped(to: tlRect))
+        let trB = calculateAverageBrightness(image.cropped(to: trRect))
+        let blB = calculateAverageBrightness(image.cropped(to: blRect))
+        let brB = calculateAverageBrightness(image.cropped(to: brRect))
 
-        // Calculate balance (closer to 1.0 = better balance)
-        let ratio = min(leftBrightness, rightBrightness) / max(leftBrightness, rightBrightness)
+        let brightTotal = tlB + trB + blB + brB
+        let cx = brightTotal > 0 ? (trB + brB) / brightTotal : 0.5   // right-weight fraction
+        let cy = brightTotal > 0 ? (tlB + trB) / brightTotal : 0.5   // top-weight fraction
 
-        // Perfect balance = 1.0, but slight asymmetry (0.7-0.9) is often good
-        if ratio > 0.7 {
-            return 0.8 + (ratio - 0.7) * 0.67  // 0.8 to 1.0
-        } else {
-            return ratio  // 0.0 to 0.7
+        // Distance from geometric center; rule-of-thirds subjects sit ~0.17 off-center
+        let dx = abs(cx - 0.5)
+        let dy = abs(cy - 0.5)
+        let centroidDistance = sqrt(dx * dx + dy * dy)
+
+        // Smooth linear interpolation between anchor points — no cliff edges
+        let centroidScore: Double
+        switch centroidDistance {
+        case ..<0.15:
+            centroidScore = 1.00  // Centred or naturally balanced
+        case 0.15..<0.28:
+            // 1.00 → 0.85 over 0.13 units
+            centroidScore = 1.00 - ((centroidDistance - 0.15) / 0.13) * 0.15
+        case 0.28..<0.45:
+            // 0.85 → 0.40 over 0.17 units
+            centroidScore = 0.85 - ((centroidDistance - 0.28) / 0.17) * 0.45
+        default:
+            // Continues falling toward 0.20 minimum
+            centroidScore = max(0.20, 0.40 - (centroidDistance - 0.45) * 1.20)
         }
+
+        // --- Edge density asymmetry via CIEdges ---
+        let edgeImage = image.applyingFilter("CIEdges", parameters: [kCIInputIntensityKey: 1.0])
+
+        let leftEdge  = calculateAverageBrightness(edgeImage.cropped(to: CGRect(x: extent.minX,      y: extent.minY, width: hw,            height: extent.height)))
+        let rightEdge = calculateAverageBrightness(edgeImage.cropped(to: CGRect(x: extent.minX + hw, y: extent.minY, width: hw,            height: extent.height)))
+        let topEdge   = calculateAverageBrightness(edgeImage.cropped(to: CGRect(x: extent.minX,      y: extent.minY + hh, width: extent.width, height: hh)))
+        let botEdge   = calculateAverageBrightness(edgeImage.cropped(to: CGRect(x: extent.minX,      y: extent.minY,      width: extent.width, height: hh)))
+
+        let lrAsym = abs(leftEdge - rightEdge) / max(leftEdge + rightEdge, 0.001)
+        let tbAsym = abs(topEdge  - botEdge)   / max(topEdge  + botEdge,   0.001)
+        let edgeAsymmetry = (lrAsym + tbAsym) / 2.0
+
+        let edgeScore: Double = edgeAsymmetry < 0.20 ? 1.0 : edgeAsymmetry < 0.40 ? 0.80 : 0.60
+
+        // Combine: centroid placement (60%) + edge density balance (40%)
+        return centroidScore * 0.6 + edgeScore * 0.4
     }
 
     private func calculateAverageBrightness(_ image: CIImage) -> Double {
@@ -141,12 +188,16 @@ actor CompositionAnalyzer {
 
         guard let outputImage = filter.outputImage else { return 0.5 }
 
-        var bitmap = [UInt8](repeating: 0, count: 4)
-        context.render(outputImage, toBitmap: &bitmap, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1), format: .RGBA8, colorSpace: nil)
+        var bitmap = [Float](repeating: 0, count: 4)
+        context.render(outputImage,
+                       toBitmap: &bitmap,
+                       rowBytes: 4 * MemoryLayout<Float>.size,
+                       bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+                       format: .RGBAf,
+                       colorSpace: nil)
 
-        // Average of RGB
-        let brightness = (Double(bitmap[0]) + Double(bitmap[1]) + Double(bitmap[2])) / (3.0 * 255.0)
-        return brightness
+        // Rec.709 perceptual luminance — matches human sensitivity weighting
+        return Double(0.2126 * bitmap[0] + 0.7152 * bitmap[1] + 0.0722 * bitmap[2])
     }
 
     // MARK: - Rule of Thirds
@@ -191,16 +242,17 @@ actor CompositionAnalyzer {
 
         guard let minDistance = distances.min() else { return 0.5 }
 
-        // Score based on distance (closer = better)
-        // Distance of 0.15 or less = excellent
-        // Distance of 0.3 or more = poor
-        if minDistance < 0.15 {
-            return 1.0
-        } else if minDistance > 0.3 {
-            return 0.3
-        } else {
-            // Linear scale between 0.15 and 0.3
-            return 1.0 - ((minDistance - 0.15) / 0.15) * 0.7
+        // Smooth piecewise decay — rewards precision on the power point,
+        // tapers continuously outward rather than hitting a hard floor
+        switch minDistance {
+        case ..<0.10:
+            return 1.00
+        case 0.10..<0.25:
+            return 1.00 - ((minDistance - 0.10) / 0.15) * 0.65    // 1.00 → 0.35
+        case 0.25..<0.40:
+            return 0.35 - ((minDistance - 0.25) / 0.15) * 0.15    // 0.35 → 0.20
+        default:
+            return 0.20
         }
     }
 

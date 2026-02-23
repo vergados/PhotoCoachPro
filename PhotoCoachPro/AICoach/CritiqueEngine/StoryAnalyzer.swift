@@ -18,7 +18,7 @@ actor StoryAnalyzer {
     }
 
     func analyze(_ image: CIImage) async throws -> CritiqueResult.CategoryScore {
-        var score: Double = 0.5
+        var score: Double = 0.0
         var issues: [String] = []
         var strengths: [String] = []
 
@@ -75,14 +75,10 @@ actor StoryAnalyzer {
             return 0.3  // No clear subject
         }
 
-        // Check if there's one dominant subject
-        if salientObjects.count == 1 {
-            return 0.9  // Clear single subject
-        } else if salientObjects.count <= 3 {
-            return 0.7  // Multiple subjects but manageable
-        } else {
-            return 0.4  // Too many competing elements
-        }
+        // Smooth decay per additional competing element:
+        // 1 → 0.90, 2 → 0.78, 3 → 0.66, 4 → 0.54, 5 → 0.42, 6+ → 0.30
+        let n = Double(salientObjects.count)
+        return max(0.30, 0.90 - (n - 1.0) * 0.12)
     }
 
     // MARK: - Visual Interest
@@ -91,44 +87,77 @@ actor StoryAnalyzer {
         // Analyze variety in texture and detail
         let entropy = calculateImageEntropy(image)
 
-        // Good entropy: 4.0-6.0 (neither too uniform nor too chaotic)
-        if entropy >= 4.0 && entropy <= 6.0 {
-            return 1.0
-        } else if entropy < 3.0 {
-            return 0.5  // Too uniform
-        } else if entropy > 7.0 {
-            return 0.6  // Too chaotic
-        } else {
-            return 0.8
-        }
+        // Smooth bell curve peaked at 5.0 bits (typical of well-composed natural scenes)
+        return smoothEntropyScore(entropy)
     }
 
+    /// Computes Shannon entropy H = Σ(-p_i × log₂(p_i)) from a 256-bin luminance histogram.
+    /// Range: 0 (uniform image) to 8 (maximally complex, all bins equally filled).
+    /// Typical natural scenes fall in 5–7 bits.
     private func calculateImageEntropy(_ image: CIImage) -> Double {
-        // Simplified entropy calculation
-        // Real implementation would calculate Shannon entropy of histogram
+        // Convert to Rec.709 grayscale so entropy reflects luminance complexity
+        let grayscale = image.applyingFilter("CIColorMatrix", parameters: [
+            "inputRVector": CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0),
+            "inputGVector": CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0),
+            "inputBVector": CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0),
+            "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+            "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 0)
+        ])
 
-        // Use histogram variance as proxy
-        guard let areaHistogram = CIFilter(name: "CIAreaHistogram") else {
-            return 5.0
+        guard let histOutput = CIFilter(name: "CIAreaHistogram", parameters: [
+            kCIInputImageKey: grayscale,
+            kCIInputExtentKey: CIVector(cgRect: grayscale.extent),
+            "inputCount": 256,
+            "inputScale": 1.0
+        ])?.outputImage else { return 5.0 }
+
+        var histData = [Float](repeating: 0, count: 256 * 4)
+        context.render(
+            histOutput,
+            toBitmap: &histData,
+            rowBytes: 256 * 4 * MemoryLayout<Float>.size,
+            bounds: CGRect(x: 0, y: 0, width: 256, height: 1),
+            format: .RGBAf,
+            colorSpace: nil
+        )
+
+        // Sum bin counts from the red channel
+        var total: Double = 0
+        var counts = [Double](repeating: 0, count: 256)
+        for i in 0..<256 {
+            counts[i] = Double(histData[i * 4])
+            total += counts[i]
         }
 
-        areaHistogram.setValue(image, forKey: kCIInputImageKey)
-        areaHistogram.setValue(64, forKey: "inputCount")
-        areaHistogram.setValue(CIVector(cgRect: image.extent), forKey: kCIInputExtentKey)
+        guard total > 0 else { return 0 }
 
-        guard let outputImage = areaHistogram.outputImage else {
-            return 5.0
+        // Shannon entropy: H = Σ(-p_i × log₂(p_i)) over all occupied bins
+        var entropy: Double = 0
+        for count in counts where count > 0 {
+            let p = count / total
+            entropy -= p * log2(p)
         }
 
-        var histogramData = [Float](repeating: 0, count: 64)
-        context.render(outputImage, toBitmap: &histogramData, rowBytes: 64 * MemoryLayout<Float>.size, bounds: CGRect(x: 0, y: 0, width: 64, height: 1), format: .Rf, colorSpace: nil)
+        return entropy
+    }
 
-        // Calculate variance
-        let mean = histogramData.reduce(0, +) / Float(histogramData.count)
-        let variance = histogramData.map { pow($0 - mean, 2) }.reduce(0, +) / Float(histogramData.count)
-
-        // Normalize to approximate entropy range
-        return Double(sqrt(variance)) * 10.0
+    /// Piecewise-linear bell curve through perceptual entropy anchors.
+    /// Anchors: 0→0.20, 2→0.40, 4→0.85, 5→1.00, 6→0.85, 7→0.65, 8→0.45
+    private func smoothEntropyScore(_ entropy: Double) -> Double {
+        let anchors: [(x: Double, y: Double)] = [
+            (0.0, 0.20), (2.0, 0.40), (4.0, 0.85),
+            (5.0, 1.00), (6.0, 0.85), (7.0, 0.65), (8.0, 0.45)
+        ]
+        if entropy <= anchors.first!.x { return anchors.first!.y }
+        if entropy >= anchors.last!.x  { return anchors.last!.y  }
+        for i in 0..<anchors.count - 1 {
+            let lo = anchors[i], hi = anchors[i + 1]
+            if entropy < hi.x {
+                let t = (entropy - lo.x) / (hi.x - lo.x)
+                return lo.y + t * (hi.y - lo.y)
+            }
+        }
+        return 0.65
     }
 
     private func generateNotes(score: Double, subjectScore: Double, interestScore: Double) -> String {

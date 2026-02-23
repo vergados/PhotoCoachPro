@@ -17,7 +17,7 @@ actor LightAnalyzer {
     }
 
     func analyze(_ image: CIImage) async throws -> CritiqueResult.CategoryScore {
-        var score: Double = 0.5
+        var score: Double = 0.0
         var issues: [String] = []
         var strengths: [String] = []
 
@@ -84,9 +84,15 @@ actor LightAnalyzer {
     }
 
     private func calculateHistogram(_ image: CIImage) -> Histogram {
-        // Convert to grayscale
-        let grayscale = image.applyingFilter("CIColorControls", parameters: [
-            kCIInputSaturationKey: 0.0
+        // Convert to perceptual luminance using Rec.709 coefficients:
+        // L = 0.2126·R + 0.7152·G + 0.0722·B
+        // This matches human vision; equal-weight (R+G+B)/3 over-weights blue.
+        let grayscale = image.applyingFilter("CIColorMatrix", parameters: [
+            "inputRVector":    CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0),
+            "inputGVector":    CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0),
+            "inputBVector":    CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0),
+            "inputAVector":    CIVector(x: 0,      y: 0,      z: 0,      w: 1),
+            "inputBiasVector": CIVector(x: 0,      y: 0,      z: 0,      w: 0)
         ])
 
         // Use area histogram
@@ -96,7 +102,7 @@ actor LightAnalyzer {
 
         filter.setValue(grayscale, forKey: kCIInputImageKey)
         filter.setValue(256, forKey: "inputCount")
-        filter.setValue(CIVector(cgRect: image.extent), forKey: kCIInputExtentKey)
+        filter.setValue(CIVector(cgRect: grayscale.extent), forKey: kCIInputExtentKey)
         filter.setValue(1.0, forKey: "inputScale")
 
         guard let outputImage = filter.outputImage else {
@@ -142,33 +148,38 @@ actor LightAnalyzer {
     }
 
     private func analyzeClipping(histogram: Histogram) -> Double {
-        // Penalize clipping
         let totalClipping = histogram.shadowClipping + histogram.highlightClipping
-
-        if totalClipping < 0.01 {
-            return 1.0  // Excellent
-        } else if totalClipping < 0.05 {
-            return 0.8  // Good
-        } else if totalClipping < 0.10 {
-            return 0.6  // Fair
-        } else {
-            return 0.3  // Poor
+        // Smooth piecewise-linear decay — no cliff edges
+        switch totalClipping {
+        case ..<0.01:
+            return 1.00                                                        // Ideal: ≤1% clipping
+        case 0.01..<0.05:
+            return 1.00 - ((totalClipping - 0.01) / 0.04) * 0.25             // 1.00 → 0.75
+        case 0.05..<0.10:
+            return 0.75 - ((totalClipping - 0.05) / 0.05) * 0.25             // 0.75 → 0.50
+        case 0.10..<0.20:
+            return 0.50 - ((totalClipping - 0.10) / 0.10) * 0.20             // 0.50 → 0.30
+        default:
+            return max(0.20, 0.30 - (totalClipping - 0.20) * 1.00)           // → 0.20 floor
         }
     }
 
     private func analyzeContrast(histogram: Histogram) -> Double {
-        // Ideal contrast is around 0.25-0.35
+        // Smooth bell curve: ideal zone 0.25–0.35, tapers toward both flat and over-contrasty extremes
         let contrast = histogram.contrast
-
-        if contrast >= 0.25 && contrast <= 0.35 {
-            return 1.0
-        } else if contrast < 0.15 {
-            return 0.4  // Too flat
-        } else if contrast > 0.45 {
-            return 0.5  // Too contrasty
-        } else {
-            // Gradual falloff
-            return 0.7
+        switch contrast {
+        case ..<0.10:
+            return 0.20 + (contrast / 0.10) * 0.35                           // 0.20 → 0.55 (very flat)
+        case 0.10..<0.25:
+            return 0.55 + ((contrast - 0.10) / 0.15) * 0.45                  // 0.55 → 1.00
+        case 0.25..<0.35:
+            return 1.00                                                        // Ideal zone
+        case 0.35..<0.45:
+            return 1.00 - ((contrast - 0.35) / 0.10) * 0.30                  // 1.00 → 0.70
+        case 0.45..<0.55:
+            return 0.70 - ((contrast - 0.45) / 0.10) * 0.25                  // 0.70 → 0.45
+        default:
+            return max(0.30, 0.45 - (contrast - 0.55) * 0.75)                // → 0.30 floor
         }
     }
 
@@ -196,13 +207,18 @@ actor LightAnalyzer {
 
         let range = Double(lastBin - firstBin) / 255.0
 
-        // Good utilization: 0.7-0.95 of range
-        if range >= 0.7 && range <= 0.95 {
-            return 1.0
-        } else if range < 0.4 {
-            return 0.4  // Narrow range
-        } else {
-            return 0.7
+        // Smooth piecewise-linear scoring — no cliff edges
+        switch range {
+        case ..<0.20:
+            return 0.15 + (range / 0.20) * 0.20                              // 0.15 → 0.35 (very narrow)
+        case 0.20..<0.50:
+            return 0.35 + ((range - 0.20) / 0.30) * 0.45                    // 0.35 → 0.80
+        case 0.50..<0.70:
+            return 0.80 + ((range - 0.50) / 0.20) * 0.20                    // 0.80 → 1.00
+        case 0.70..<0.95:
+            return 1.00                                                       // Ideal zone
+        default:
+            return max(0.80, 1.00 - (range - 0.95) * 0.80)                  // Minor taper for over-extension
         }
     }
 

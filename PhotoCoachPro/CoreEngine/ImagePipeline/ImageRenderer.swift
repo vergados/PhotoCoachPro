@@ -88,7 +88,7 @@ actor ImageRenderer {
         #if canImport(UIKit)
         return UIImage(cgImage: cgImage, scale: scale, orientation: .up)
         #elseif canImport(AppKit)
-        let size = NSSize(width: cgImage.width / Int(scale), height: cgImage.height / Int(scale))
+        let size = NSSize(width: CGFloat(cgImage.width) / scale, height: CGFloat(cgImage.height) / scale)
         return NSImage(cgImage: cgImage, size: size)
         #endif
     }
@@ -132,6 +132,28 @@ actor ImageRenderer {
         }
         return bitmap.representation(using: .jpeg, properties: [.compressionFactor: quality])
         #endif
+    }
+
+    /// Render to TIFF data (16-bit, lossless)
+    func renderTIFF(from ciImage: CIImage, colorSpace: CGColorSpace? = nil) async -> Data? {
+        let targetSpace = colorSpace ?? CGColorSpace(name: CGColorSpace.adobeRGB1998)!
+        return context.tiffRepresentation(
+            of: ciImage,
+            format: .RGBA16,
+            colorSpace: targetSpace,
+            options: [:]
+        )
+    }
+
+    /// Render to HEIC data
+    func renderHEIC(from ciImage: CIImage, quality: Double = 0.9, colorSpace: CGColorSpace? = nil) async -> Data? {
+        let targetSpace = colorSpace ?? CGColorSpace(name: CGColorSpace.displayP3)!
+        return context.heifRepresentation(
+            of: ciImage,
+            format: .RGBA8,
+            colorSpace: targetSpace,
+            options: [kCGImageDestinationLossyCompressionQuality as CIImageRepresentationOption: quality]
+        )
     }
 
     /// Render to PNG data
