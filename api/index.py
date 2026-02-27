@@ -1,26 +1,80 @@
 """
-Photo Coach Pro — Vercel Serverless Entry Point
+Photo Coach Pro — Vercel Serverless API
 Name: Jason E Alaounis
 Email: Philotimo71@gmail.com
 Company: ALÁON
 
-This file is the ASGI handler Vercel invokes for every Python function request.
-Mangum adapts FastAPI (ASGI) to the Lambda-style execution model that Vercel uses.
+Self-contained FastAPI app. photo_coach_core/ lives in the same directory
+so @vercel/python bundles it automatically — no sys.path tricks needed.
 """
 
 from __future__ import annotations
 
-import os
-import sys
+import tempfile
+from pathlib import Path
 
-# Make backend source importable regardless of where Vercel resolves __file__
-_here = os.path.dirname(os.path.abspath(__file__))
-_backend_src = os.path.abspath(os.path.join(_here, "..", "backend", "src"))
-if _backend_src not in sys.path:
-    sys.path.insert(0, _backend_src)
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from mangum import Mangum
 
-from mangum import Mangum  # type: ignore
-from photo_coach_api.main import app  # noqa: E402  (import after sys.path patch)
+from photo_coach_core.io.exif import read_exif_summary
+from photo_coach_core.critique.exposure import exposure_metrics
+from photo_coach_core.critique.sharpness import sharpness_metrics
+from photo_coach_core.critique.color import color_metrics
+from photo_coach_core.scoring.aggregate import score_image
 
-# Vercel looks for a callable named `handler`
+app = FastAPI(title="Photo Coach Pro API", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/health")
+def health():
+    return {"ok": True, "service": "photo-coach-pro-api"}
+
+
+@app.post("/api/v1/critique")
+async def critique(file: UploadFile = File(...)) -> JSONResponse:
+    if not file:
+        raise HTTPException(status_code=400, detail="Missing file")
+
+    data = await file.read()
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (max 10 MB)")
+
+    suffix = Path(file.filename or "upload").suffix or ".jpg"
+
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=True) as tmp:
+        tmp.write(data)
+        tmp.flush()
+        temp_path = Path(tmp.name)
+
+        exif  = read_exif_summary(temp_path)
+        exp   = exposure_metrics(temp_path)
+        shp   = sharpness_metrics(temp_path)
+        col   = color_metrics(temp_path)
+
+        score = score_image(
+            exposure  = exp if exp.get("available") else {"score_0_100": 50},
+            sharpness = shp if shp.get("available") else {"score_0_100": 50},
+            color     = col if col.get("available") else {"score_0_100": 50},
+        )
+
+    return JSONResponse({
+        "ok":        True,
+        "used_core": True,
+        "filename":  file.filename,
+        "exif":      exif,
+        "metrics":   {"exposure": exp, "sharpness": shp, "color": col},
+        "score":     score,
+    })
+
+
 handler = Mangum(app, lifespan="off")

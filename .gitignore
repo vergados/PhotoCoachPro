@@ -23,11 +23,11 @@ env/
 .env.*.local
 
 # Next.js
-frontend/.next/
-frontend/out/
-frontend/node_modules/
-frontend/.npm
-frontend/.eslintcache
+.next/
+out/
+node_modules/
+.npm
+.eslintcache
 
 # OS
 .DS_Store

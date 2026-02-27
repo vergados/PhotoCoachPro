@@ -1,3 +1,6 @@
 {
-  "_note": "Vercel Root Directory must be set to 'frontend/' in the Vercel project settings. The active vercel.json is at frontend/vercel.json."
+  "rewrites": [
+    { "source": "/api/v1/:path*", "destination": "/api/index" },
+    { "source": "/health",        "destination": "/api/index" }
+  ]
 }
