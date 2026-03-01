@@ -7,35 +7,54 @@
 
 import Foundation
 import SwiftData
+import OSLog
+
+private let logger = Logger(subsystem: "com.photocoachpro", category: "LocalDatabase")
 
 /// Manages SwiftData model container and context
 @MainActor
 class LocalDatabase: ObservableObject {
-    static let shared = LocalDatabase()
+    nonisolated(unsafe) static let shared = LocalDatabase()
 
     let container: ModelContainer
     var context: ModelContext { container.mainContext }
 
-    private init() {
-        do {
-            // Simple ModelContainer initialization
-            container = try ModelContainer(
-                for: PhotoRecord.self,
-                      EditRecord.self,
-                      MaskRecord.self,
-                      RAWSettingsRecord.self,
-                      CritiqueRecord.self,
-                      PresetRecord.self,
-                      SkillHistoryRecord.self
-            )
-        } catch {
-            // Print error for debugging
-            print("❌ ModelContainer initialization failed: \(error)")
-            print("❌ Error details: \(error.localizedDescription)")
-            if let detailedError = error as? CustomDebugStringConvertible {
-                print("❌ Debug description: \(detailedError.debugDescription)")
-            }
-            fatalError("Could not create ModelContainer: \(error)")
+    nonisolated private init() {
+        let schema = Schema([
+            PhotoRecord.self,
+            EditRecord.self,
+            MaskRecord.self,
+            RAWSettingsRecord.self,
+            CritiqueRecord.self,
+            PresetRecord.self,
+            SkillHistoryRecord.self
+        ])
+
+        // Try opening existing store first
+        if let c = LocalDatabase.makeContainer(schema: schema) {
+            container = c
+            return
+        }
+
+        // Existing store is corrupted or incompatible — wipe and recreate
+        logger.error("ModelContainer failed; wiping store and retrying")
+        LocalDatabase.destroyStore(schema: schema)
+
+        guard let c = LocalDatabase.makeContainer(schema: schema) else {
+            fatalError("Could not create ModelContainer even after store reset")
+        }
+        container = c
+    }
+
+    nonisolated private static func makeContainer(schema: Schema) -> ModelContainer? {
+        try? ModelContainer(for: schema)
+    }
+
+    nonisolated private static func destroyStore(schema: Schema) {
+        let config = ModelConfiguration(schema: schema)
+        let url = config.url
+        for ext in ["", "-shm", "-wal"] {
+            try? FileManager.default.removeItem(at: URL(fileURLWithPath: url.path + ext))
         }
     }
 

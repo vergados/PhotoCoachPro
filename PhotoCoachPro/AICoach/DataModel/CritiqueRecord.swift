@@ -115,20 +115,6 @@ final class CritiqueRecord {
     }
 }
 
-// MARK: - PhotoRecord Extension
-
-extension PhotoRecord {
-    /// Get most recent critique
-    var latestCritique: CritiqueRecord? {
-        critiques.sorted { $0.timestamp > $1.timestamp }.first
-    }
-
-    /// Get all critiques sorted by date
-    var sortedCritiques: [CritiqueRecord] {
-        critiques.sorted { $0.timestamp > $1.timestamp }
-    }
-}
-
 // MARK: - Errors
 
 enum CritiqueError: Error, LocalizedError {

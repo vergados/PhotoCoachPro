@@ -90,15 +90,15 @@ actor PresetManager {
 
     /// Update existing preset
     func update(_ preset: Preset) async throws {
-        guard let record = await database.fetchPreset(id: preset.id) else {
-            throw PresetError.presetNotFound
-        }
-
+        // Fetch, mutate, and save all within the MainActor to avoid sending
+        // non-Sendable PresetRecord and ModelContext across isolation boundaries.
         try await MainActor.run {
+            guard let record = LocalDatabase.shared.fetchPreset(id: preset.id) else {
+                throw PresetError.presetNotFound
+            }
             try record.update(from: preset)
+            try LocalDatabase.shared.context.save()
         }
-
-        try await database.context.save()
     }
 
     /// Delete preset

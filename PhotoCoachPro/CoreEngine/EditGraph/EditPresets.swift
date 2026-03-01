@@ -48,7 +48,7 @@ struct EditPreset: Codable, Identifiable, Equatable {
 
 /// Manages preset library
 actor EditPresetManager {
-    private var presets: [EditPreset] = []
+    private var presets: [EditPreset]
 
     // MARK: - Storage URL
 
@@ -64,8 +64,61 @@ actor EditPresetManager {
     }
 
     init() {
-        loadDefaultPresets()
-        loadUserPresetsFromDisk()
+        // Compute all presets before assignment so no actor-isolated methods are
+        // called from the nonisolated init context.
+        var initial: [EditPreset] = []
+
+        // Default presets (previously in loadDefaultPresets)
+        initial.append(EditPreset(
+            name: "Natural Portrait",
+            instructions: [
+                EditInstruction(type: .exposure, value: 0.3),
+                EditInstruction(type: .shadows, value: 15),
+                EditInstruction(type: .texture, value: -10),
+                EditInstruction(type: .clarity, value: -5),
+                EditInstruction(type: .saturation, value: -5),
+                EditInstruction(type: .sharpAmount, value: 40)
+            ],
+            category: .portrait,
+            isUserCreated: false
+        ))
+
+        initial.append(EditPreset(
+            name: "Vivid Landscape",
+            instructions: [
+                EditInstruction(type: .contrast, value: 15),
+                EditInstruction(type: .clarity, value: 20),
+                EditInstruction(type: .vibrance, value: 30),
+                EditInstruction(type: .saturation, value: 10),
+                EditInstruction(type: .sharpAmount, value: 60)
+            ],
+            category: .landscape,
+            isUserCreated: false
+        ))
+
+        initial.append(EditPreset(
+            name: "Classic B&W",
+            instructions: [
+                EditInstruction(type: .saturation, value: -100),
+                EditInstruction(type: .contrast, value: 25),
+                EditInstruction(type: .clarity, value: 15),
+                EditInstruction(type: .blacks, value: -10),
+                EditInstruction(type: .vignetteAmount, value: -20)
+            ],
+            category: .blackAndWhite,
+            isUserCreated: false
+        ))
+
+        // User presets from disk (previously in loadUserPresetsFromDisk)
+        // presetsFileURL is a nonisolated static property, safe to call here
+        if let data = try? Data(contentsOf: Self.presetsFileURL),
+           let saved = try? JSONDecoder().decode([EditPreset].self, from: data) {
+            for preset in saved where !initial.contains(where: { $0.id == preset.id }) {
+                initial.append(preset)
+            }
+        }
+
+        self.presets = initial
     }
 
     // MARK: - Access
@@ -100,7 +153,7 @@ actor EditPresetManager {
 
     // MARK: - Clipboard Operations
 
-    private var clipboard: [EditInstruction]?
+    private var clipboard: [EditInstruction]? = nil
 
     func copy(instructions: [EditInstruction]) {
         clipboard = instructions

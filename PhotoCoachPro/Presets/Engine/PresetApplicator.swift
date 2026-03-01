@@ -129,23 +129,40 @@ actor PresetApplicator {
         strength: Double = 1.0,
         database: LocalDatabase
     ) async throws -> [PhotoRecord] {
-        var updated: [PhotoRecord] = []
+        // Compute adjusted instructions here (actor context — pure value-type work).
+        let instructions = adjustedInstructions(preset.instructions, strength: strength)
+        let capturedMode = mode
+        // Bridge with UUID (Sendable) so no non-Sendable PhotoRecord crosses into
+        // the MainActor.run closure. Fetch models by UUID inside the closure instead.
+        let photoUUIDs = photos.map(\.id)
 
-        for photo in photos {
-            var editRecord = try await MainActor.run {
-                try database.getOrCreateEditRecord(for: photo)
+        try await MainActor.run {
+            for uuid in photoUUIDs {
+                guard let photo = LocalDatabase.shared.fetchPhoto(id: uuid) else { continue }
+                var editRecord = try LocalDatabase.shared.getOrCreateEditRecord(for: photo)
+                switch capturedMode {
+                case .replace:
+                    editRecord.editStack = EditStack(instructions: instructions)
+                case .append:
+                    var combined = editRecord.editStack.activeInstructions
+                    combined.append(contentsOf: instructions)
+                    editRecord.editStack = EditStack(instructions: combined)
+                case .merge:
+                    var merged = editRecord.editStack.activeInstructions
+                    for instr in instructions {
+                        if let idx = merged.firstIndex(where: { $0.type == instr.type }) {
+                            merged[idx] = instr
+                        } else {
+                            merged.append(instr)
+                        }
+                    }
+                    editRecord.editStack = EditStack(instructions: merged)
+                }
             }
-
-            apply(preset, to: &editRecord, mode: mode, strength: strength)
-
-            try await MainActor.run {
-                try database.context.save()
-            }
-
-            updated.append(photo)
+            try LocalDatabase.shared.context.save()
         }
 
-        return updated
+        return photos
     }
 
     // MARK: - Preset Blending

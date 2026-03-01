@@ -7,6 +7,9 @@
 
 import Foundation
 import SwiftData
+import OSLog
+
+private let logger = Logger(subsystem: "com.photocoachpro", category: "PhotoRecord")
 
 @Model
 final class PhotoRecord {
@@ -77,6 +80,19 @@ final class PhotoRecord {
     }
 }
 
+// MARK: - Critique Helpers
+extension PhotoRecord {
+    /// Get most recent critique
+    var latestCritique: CritiqueRecord? {
+        critiques.sorted { $0.timestamp > $1.timestamp }.first
+    }
+
+    /// Get all critiques sorted by date
+    var sortedCritiques: [CritiqueRecord] {
+        critiques.sorted { $0.timestamp > $1.timestamp }
+    }
+}
+
 // MARK: - Convenience Extensions
 extension PhotoRecord {
     enum PhotoSourceType {
@@ -92,7 +108,7 @@ extension PhotoRecord {
             // Unknown sourceType — log and default to fileSystem to avoid a crash.
             // The ternary operator previously mapped ALL non-"photosLibrary" values
             // (including future source types like "cloudStorage") silently to .fileSystem.
-            print("Warning: unknown sourceType '\(sourceType!)' for photo \(id), defaulting to .fileSystem")
+            logger.warning("Unknown sourceType '\(self.sourceType ?? "unknown")' for photo \(self.id), defaulting to .fileSystem")
             return .fileSystem
         }
     }
