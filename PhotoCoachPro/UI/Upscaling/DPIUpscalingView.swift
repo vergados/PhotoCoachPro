@@ -25,6 +25,7 @@ struct DPIUpscalingView: View {
     @State private var isUpscaling = false
     @State private var showThumbnails = true
     @State private var errorMessage: String?
+    @State private var showErrorAlert = false
 
     // Print size configuration
     @State private var selectedCategory: UpscalingPrintSizeCategory = .standard
@@ -52,7 +53,7 @@ struct DPIUpscalingView: View {
 
                 Divider()
 
-                // Main content with overlays inside the ZStack so they are always visible
+                // Main content
                 ZStack {
                     if let image = upscaledImage, let dims = upscaledDimensions, let photo = selectedPhoto {
                         upscaledPreview(image: image, dimensions: dims, photo: photo)
@@ -62,51 +63,26 @@ struct DPIUpscalingView: View {
                         photoSelectionPrompt
                     }
 
-                    // Loading indicator — bottom-right corner, floats over content
+                    // Full-screen loading overlay — impossible to miss
                     if isUpscaling {
-                        VStack {
-                            Spacer()
-                            HStack {
-                                Spacer()
-                                HStack(spacing: 12) {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                    Text("Upscaling...")
-                                        .font(.subheadline)
-                                }
-                                .padding()
-                                .background(.ultraThickMaterial)
-                                .cornerRadius(8)
-                                .shadow(radius: 4)
-                                .padding()
-                            }
-                        }
-                    }
-
-                    // Error message — bottom bar, floats over content
-                    if let error = errorMessage {
-                        VStack {
-                            Spacer()
-                            HStack {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundColor(.yellow)
-                                Text(error)
-                                    .foregroundColor(.white)
-                                Spacer()
-                                Button("Dismiss") {
-                                    errorMessage = nil
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .tint(.red)
-                            }
-                            .padding()
-                            .background(Color.red.opacity(0.9))
-                            .cornerRadius(8)
-                            .padding()
+                        Color.black.opacity(0.55)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        VStack(spacing: 20) {
+                            ProgressView()
+                                .scaleEffect(1.8)
+                                .tint(.white)
+                            Text("Upscaling…")
+                                .font(.headline)
+                                .foregroundStyle(.white)
                         }
                     }
                 }
-                .frame(maxHeight: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .alert("Upscaling Error", isPresented: $showErrorAlert) {
+                    Button("OK") { errorMessage = nil }
+                } message: {
+                    Text(errorMessage ?? "An unknown error occurred.")
+                }
 
                 // Thumbnail strip (toggleable)
                 if showThumbnails {
@@ -479,7 +455,8 @@ extension DPIUpscalingView {
 
     private func performUpscale() {
         guard let photo = selectedPhoto else {
-            errorMessage = "No photo selected"
+            errorMessage = "No photo selected."
+            showErrorAlert = true
             return
         }
 
@@ -489,14 +466,15 @@ extension DPIUpscalingView {
 
         let megapixels = (targetWidth * targetHeight) / 1_000_000
         if megapixels > 500 {
-            errorMessage = "Output too large: \(megapixels)MP. Choose smaller size or lower DPI."
+            errorMessage = "Output too large (\(megapixels) MP). Choose a smaller size or lower DPI."
+            showErrorAlert = true
             return
         }
 
         isUpscaling = true
         errorMessage = nil
 
-        Task {
+        Task { @MainActor in
             do {
                 let loaded = try await appState.imageLoader.loadImage(for: photo)
                 let actualWidth = Int(loaded.image.extent.width)
@@ -506,11 +484,10 @@ extension DPIUpscalingView {
                 let scaleY = Double(targetHeight) / Double(actualHeight)
                 let scale = max(scaleX, scaleY)
 
-                if scale < 1.0 {
-                    await MainActor.run {
-                        errorMessage = "Image is already larger than target size. No upscaling needed."
-                        isUpscaling = false
-                    }
+                if scale <= 1.0 {
+                    errorMessage = "Image is already larger than the target size — no upscaling needed."
+                    showErrorAlert = true
+                    isUpscaling = false
                     return
                 }
 
@@ -523,16 +500,13 @@ extension DPIUpscalingView {
                 let platformImage = convertToPlatformImage(upscaledCIImage)
                 let resultDims = upscaledCIImage.extent.size
 
-                await MainActor.run {
-                    upscaledImage = platformImage
-                    upscaledDimensions = resultDims
-                    isUpscaling = false
-                }
+                upscaledImage = platformImage
+                upscaledDimensions = resultDims
+                isUpscaling = false
             } catch {
-                await MainActor.run {
-                    errorMessage = "Upscaling failed: \(error.localizedDescription)"
-                    isUpscaling = false
-                }
+                errorMessage = "Upscaling failed: \(error.localizedDescription)"
+                showErrorAlert = true
+                isUpscaling = false
             }
         }
     }
