@@ -57,117 +57,107 @@ struct EditorView: View {
 
     var body: some View {
         NavigationStack {
-            GeometryReader { geometry in
-                if geometry.size.width > geometry.size.height {
-                    // Landscape: Side-by-side
-                    HStack(spacing: 0) {
-                        imageCanvas
-                            .frame(maxWidth: .infinity)
-
-                        toolPanel
-                            .frame(width: 320)
-                    }
-                } else {
-                    // Portrait: Stacked
-                    VStack(spacing: 0) {
-                        imageCanvas
-                            .frame(maxHeight: .infinity)
-
-                        toolPanel
-                            .frame(height: 300)
+            imageCanvas
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    bottomSection
+                }
+                .background(DS.bg)
+                .navigationTitle(appState.currentPhoto?.fileName ?? "Editor")
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                #if os(iOS)
+                .toolbarBackground(DS.bgRaised, for: .navigationBar)
+                #endif
+                .toolbar {
+                    ToolbarItemGroup(placement: .primaryAction) {
+                        toolbarButtons
                     }
                 }
-            }
-            .navigationTitle(appState.currentPhoto?.fileName ?? "Editor")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItemGroup(placement: .primaryAction) {
-                    toolbarButtons
-                }
-            }
-            .sheet(isPresented: $showExportOptions) {
-                if let photo = appState.currentPhoto {
-                    ExportOptionsView(settings: $exportSettings) { _ in
-                        showExportOptions = false
+                .sheet(isPresented: $showExportOptions) {
+                    if let _ = appState.currentPhoto {
+                        ExportOptionsView(settings: $exportSettings) { _ in
+                            showExportOptions = false
+                        }
                     }
                 }
-            }
-            .sheet(isPresented: $showShareSheet) {
-                if let photo = appState.currentPhoto {
-                    ShareView(photoRecord: photo)
+                .sheet(isPresented: $showShareSheet) {
+                    if let photo = appState.currentPhoto {
+                        ShareView(photoRecord: photo)
+                    }
                 }
-            }
-            .sheet(isPresented: $showPrintPrep) {
-                if let photo = appState.currentPhoto {
-                    PrintPreparationView(photoRecord: photo)
+                .sheet(isPresented: $showPrintPrep) {
+                    if let photo = appState.currentPhoto {
+                        PrintPreparationView(photoRecord: photo)
+                    }
                 }
-            }
-            .sheet(isPresented: $showSavePreset) {
-                if let editRecord = appState.currentEditHistory?.editRecord {
-                    SavePresetView(editRecord: editRecord)
+                .sheet(isPresented: $showSavePreset) {
+                    if let editRecord = appState.currentEditHistory?.editRecord {
+                        SavePresetView(editRecord: editRecord)
+                    }
                 }
-            }
         }
     }
 
-    // MARK: - Subviews
+    // MARK: - Image Canvas
 
     private var imageCanvas: some View {
         ZStack {
             Color.black
 
             if showBeforeAfter {
-                // Before/After comparison
-                GeometryReader { geometry in
+                GeometryReader { geo in
                     HStack(spacing: 0) {
-                        // Before (original)
                         if let original = appState.currentImage,
                            let renderer = CIContext().createCGImage(original, from: original.extent) {
                             Image(decorative: renderer, scale: 1.0)
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
-                                .frame(width: geometry.size.width / 2)
+                                .frame(width: geo.size.width / 2)
                                 .overlay(alignment: .topLeading) {
-                                    Text("Before")
-                                        .font(.caption)
-                                        .padding(8)
+                                    Text("BEFORE")
+                                        .font(.system(size: 9, weight: .medium))
+                                        .tracking(1.0)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 4)
                                         .background(.black.opacity(0.6))
-                                        .foregroundColor(.white)
-                                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                                        .foregroundStyle(DS.textSecondary)
+                                        .clipShape(RoundedRectangle(cornerRadius: 3))
                                         .padding(8)
                                 }
                         }
 
-                        // After (edited)
                         if let edited = appState.renderedImage {
                             #if os(iOS)
                             Image(uiImage: edited)
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
-                                .frame(width: geometry.size.width / 2)
+                                .frame(width: geo.size.width / 2)
                                 .overlay(alignment: .topLeading) {
-                                    Text("After")
-                                        .font(.caption)
-                                        .padding(8)
+                                    Text("AFTER")
+                                        .font(.system(size: 9, weight: .medium))
+                                        .tracking(1.0)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 4)
                                         .background(.black.opacity(0.6))
-                                        .foregroundColor(.white)
-                                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                                        .foregroundStyle(DS.accent)
+                                        .clipShape(RoundedRectangle(cornerRadius: 3))
                                         .padding(8)
                                 }
                             #elseif os(macOS)
                             Image(nsImage: edited)
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
-                                .frame(width: geometry.size.width / 2)
+                                .frame(width: geo.size.width / 2)
                                 .overlay(alignment: .topLeading) {
-                                    Text("After")
-                                        .font(.caption)
-                                        .padding(8)
+                                    Text("AFTER")
+                                        .font(.system(size: 9, weight: .medium))
+                                        .tracking(1.0)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 4)
                                         .background(.black.opacity(0.6))
-                                        .foregroundColor(.white)
-                                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                                        .foregroundStyle(DS.accent)
+                                        .clipShape(RoundedRectangle(cornerRadius: 3))
                                         .padding(8)
                                 }
                             #endif
@@ -175,7 +165,6 @@ struct EditorView: View {
                     }
                 }
             } else {
-                // Normal view (edited only)
                 if let image = appState.renderedImage {
                     #if os(iOS)
                     Image(uiImage: image)
@@ -188,10 +177,10 @@ struct EditorView: View {
                     #endif
                 } else {
                     ProgressView()
+                        .tint(DS.accent)
                 }
             }
 
-            // Histogram overlay
             if showHistogram {
                 VStack {
                     HStack {
@@ -207,80 +196,41 @@ struct EditorView: View {
         .accessibilityLabel("Image canvas")
     }
 
-    private var toolPanel: some View {
+    // MARK: - Bottom Section
+
+    private var bottomSection: some View {
         VStack(spacing: 0) {
-            // Tool selector
-            ToolPicker(selection: $selectedTool)
-                .padding(.horizontal)
-                .padding(.top, 12)
+            Rectangle()
+                .fill(DS.border)
+                .frame(height: 1)
 
-            Divider()
+            RolodexToolPicker(selection: $selectedTool)
+                .frame(height: 72)
+                .background(DS.bgRaised)
 
-            // Tool-specific controls
-            ScrollView {
+            ScrollView(.vertical) {
                 VStack(spacing: 20) {
-                    switch selectedTool {
-                    case .basic:
-                        BasicControls()
-                    case .color:
-                        ColorControls()
-                    case .detail:
-                        DetailControls()
-                    case .effects:
-                        EffectsControls()
-                    case .curves:
-                        ToneCurveView(curvePoints: $curvePoints) {
-                            let sorted = curvePoints.sorted { $0.x < $1.x }
-                            let pointsStr = sorted.map { "\($0.x),\($0.y)" }.joined(separator: ";")
-                            let instruction = EditInstruction(
-                                type: .toneCurveControlPoint,
-                                value: Double(sorted.count),
-                                metadata: ["points": pointsStr]
-                            )
-                            Task { await appState.addEdit(instruction) }
-                        }
-                    case .hsl:
-                        HSLMixerView()
-                    case .crop:
-                        if let ciImage = appState.currentImage {
-                            CropView(
-                                cropRect: $cropRect,
-                                rotationAngle: $cropRotation,
-                                aspectRatio: $cropAspectRatio,
-                                imageSize: ciImage.extent.size
-                            ) {
-                                let extent = ciImage.extent
-                                let history = appState.currentEditHistory
-                                if cropRect.width > 0, cropRect.height > 0 {
-                                    history?.addInstruction(EditInstruction(type: .cropX, value: cropRect.origin.x / extent.width))
-                                    history?.addInstruction(EditInstruction(type: .cropY, value: cropRect.origin.y / extent.height))
-                                    history?.addInstruction(EditInstruction(type: .cropWidth, value: cropRect.width / extent.width))
-                                    history?.addInstruction(EditInstruction(type: .cropHeight, value: cropRect.height / extent.height))
-                                }
-                                history?.addInstruction(EditInstruction(type: .cropRotation, value: cropRotation))
-                                Task { await appState.renderCurrentImage() }
-                            }
-                        }
-                    case .mask:
-                        MaskPanelView()
-                    case .lens:
-                        LensControls()
-                    }
+                    toolControls
                 }
                 .padding()
             }
+            .frame(height: 200)
+            .background(DS.bgRaised)
 
-            Divider()
+            Rectangle()
+                .fill(DS.border)
+                .frame(height: 1)
 
-            // Bottom actions
             HStack(spacing: 16) {
                 Button(action: { Task { await appState.undo() } }) {
                     Image(systemName: "arrow.uturn.backward")
+                        .foregroundStyle(DS.textSecondary)
                 }
                 .disabled(appState.currentEditHistory?.canUndo != true)
 
                 Button(action: { Task { await appState.redo() } }) {
                     Image(systemName: "arrow.uturn.forward")
+                        .foregroundStyle(DS.textSecondary)
                 }
                 .disabled(appState.currentEditHistory?.canRedo != true)
 
@@ -290,21 +240,76 @@ struct EditorView: View {
                     appState.currentEditHistory?.resetToOriginal()
                     Task { await appState.renderCurrentImage() }
                 }
-                .foregroundStyle(.red)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(DS.textSecondary)
 
                 Button("Done") {
                     appState.selectedTab = .home
                 }
-                .buttonStyle(.borderedProminent)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(DS.accent)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background(DS.accentDim)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             .padding()
+            .background(DS.bgRaised)
         }
-        #if os(iOS)
-        .background(Color(.systemBackground))
-        #else
-        .background(Color(NSColor.windowBackgroundColor))
-        #endif
     }
+
+    @ViewBuilder
+    private var toolControls: some View {
+        switch selectedTool {
+        case .basic:
+            BasicControls()
+        case .color:
+            ColorControls()
+        case .detail:
+            DetailControls()
+        case .effects:
+            EffectsControls()
+        case .curves:
+            ToneCurveView(curvePoints: $curvePoints) {
+                let sorted = curvePoints.sorted { $0.x < $1.x }
+                let pointsStr = sorted.map { "\($0.x),\($0.y)" }.joined(separator: ";")
+                let instruction = EditInstruction(
+                    type: .toneCurveControlPoint,
+                    value: Double(sorted.count),
+                    metadata: ["points": pointsStr]
+                )
+                Task { await appState.addEdit(instruction) }
+            }
+        case .hsl:
+            HSLMixerView()
+        case .crop:
+            if let ciImage = appState.currentImage {
+                CropView(
+                    cropRect: $cropRect,
+                    rotationAngle: $cropRotation,
+                    aspectRatio: $cropAspectRatio,
+                    imageSize: ciImage.extent.size
+                ) {
+                    let extent = ciImage.extent
+                    let history = appState.currentEditHistory
+                    if cropRect.width > 0, cropRect.height > 0 {
+                        history?.addInstruction(EditInstruction(type: .cropX, value: cropRect.origin.x / extent.width))
+                        history?.addInstruction(EditInstruction(type: .cropY, value: cropRect.origin.y / extent.height))
+                        history?.addInstruction(EditInstruction(type: .cropWidth, value: cropRect.width / extent.width))
+                        history?.addInstruction(EditInstruction(type: .cropHeight, value: cropRect.height / extent.height))
+                    }
+                    history?.addInstruction(EditInstruction(type: .cropRotation, value: cropRotation))
+                    Task { await appState.renderCurrentImage() }
+                }
+            }
+        case .mask:
+            MaskPanelView()
+        case .lens:
+            LensControls()
+        }
+    }
+
+    // MARK: - Toolbar Buttons
 
     private var toolbarButtons: some View {
         Group {
@@ -312,6 +317,7 @@ struct EditorView: View {
                 showHistogram.toggle()
             } label: {
                 Image(systemName: "chart.bar")
+                    .foregroundStyle(showHistogram ? DS.accent : DS.textSecondary)
             }
             .accessibilityLabel("Toggle histogram")
 
@@ -319,52 +325,107 @@ struct EditorView: View {
                 showBeforeAfter.toggle()
             } label: {
                 Image(systemName: "arrow.left.and.right")
+                    .foregroundStyle(showBeforeAfter ? DS.accent : DS.textSecondary)
             }
             .accessibilityLabel("Compare before and after")
 
-            Button { showExportOptions = true } label: { Image(systemName: "square.and.arrow.up") }
-                .accessibilityLabel("Export photo")
-            Button { showShareSheet = true } label: { Image(systemName: "shareplay") }
-                .accessibilityLabel("Share photo")
-            Button { showPrintPrep = true } label: { Image(systemName: "printer") }
-                .accessibilityLabel("Print photo")
-            Button { showSavePreset = true } label: { Image(systemName: "star.circle") }
-                .accessibilityLabel("Save as preset")
-                .disabled(appState.currentPhoto == nil)
+            Button { showExportOptions = true } label: {
+                Image(systemName: "square.and.arrow.up").foregroundStyle(DS.textSecondary)
+            }
+            .accessibilityLabel("Export photo")
+
+            Button { showShareSheet = true } label: {
+                Image(systemName: "shareplay").foregroundStyle(DS.textSecondary)
+            }
+            .accessibilityLabel("Share photo")
+
+            Button { showPrintPrep = true } label: {
+                Image(systemName: "printer").foregroundStyle(DS.textSecondary)
+            }
+            .accessibilityLabel("Print photo")
+
+            Button { showSavePreset = true } label: {
+                Image(systemName: "star.circle").foregroundStyle(DS.textSecondary)
+            }
+            .accessibilityLabel("Save as preset")
+            .disabled(appState.currentPhoto == nil)
         }
     }
 }
 
-// MARK: - Tool Picker
-struct ToolPicker: View {
+// MARK: - Rolodex Tool Picker
+
+struct RolodexToolPicker: View {
     @Binding var selection: EditorView.EditTool
+    @State private var scrolledTool: EditorView.EditTool? = nil
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(EditorView.EditTool.allCases, id: \.self) { tool in
-                    Button {
-                        selection = tool
-                    } label: {
-                        VStack(spacing: 4) {
-                            Image(systemName: tool.icon)
-                                .font(.title3)
+        GeometryReader { geometry in
+            let slotWidth = geometry.size.width / 3.0
 
-                            Text(tool.rawValue)
-                                .font(.caption)
+            ZStack(alignment: .bottom) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 0) {
+                        ForEach(EditorView.EditTool.allCases, id: \.self) { tool in
+                            RolodexItem(tool: tool, isSelected: selection == tool)
+                                .frame(width: slotWidth)
+                                .id(tool)
                         }
-                        .frame(minWidth: 60)
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 6)
-                        .background(selection == tool ? Color.accentColor : Color.clear)
-                        .foregroundStyle(selection == tool ? .white : .primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(tool.rawValue)
-                    .accessibilityAddTraits(selection == tool ? [.isSelected] : [])
+                    .scrollTargetLayout()
                 }
+                .scrollTargetBehavior(.viewAligned)
+                .contentMargins(.horizontal, slotWidth, for: .scrollContent)
+                .scrollPosition(id: $scrolledTool, anchor: .center)
+                .onChange(of: scrolledTool) { _, newTool in
+                    if let tool = newTool {
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            selection = tool
+                        }
+                    }
+                }
+                .onAppear {
+                    scrolledTool = selection
+                }
+
+                // Thin accent line beneath the center slot indicating selected tool
+                Rectangle()
+                    .fill(DS.accent)
+                    .frame(width: slotWidth, height: 2)
+                    .allowsHitTesting(false)
             }
         }
+    }
+}
+
+// MARK: - Rolodex Item
+
+private struct RolodexItem: View {
+    let tool: EditorView.EditTool
+    let isSelected: Bool
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: tool.icon)
+                .font(.system(
+                    size: isSelected ? 22 : 16,
+                    weight: isSelected ? .semibold : .regular
+                ))
+                .foregroundStyle(isSelected ? DS.accent : DS.textTertiary)
+                .animation(.easeInOut(duration: 0.18), value: isSelected)
+
+            Text(tool.rawValue.uppercased())
+                .font(.system(
+                    size: isSelected ? 11 : 10,
+                    weight: isSelected ? .semibold : .regular
+                ))
+                .tracking(1)
+                .foregroundStyle(isSelected ? DS.accent : DS.textTertiary)
+                .animation(.easeInOut(duration: 0.18), value: isSelected)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .accessibilityLabel(tool.rawValue)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }
