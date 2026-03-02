@@ -6,6 +6,10 @@
 //
 
 import SwiftUI
+import SwiftData
+import OSLog
+
+private let logger = Logger(subsystem: "com.photocoachpro", category: "PresetDetailView")
 
 /// Preset detail with preview and apply
 struct PresetDetailView: View {
@@ -16,7 +20,14 @@ struct PresetDetailView: View {
     @State private var afterImage: PlatformImage?
     @State private var showingBefore = false
     @State private var isApplying = false
+    @State private var previewSource: CIImage? = nil
+    @State private var beforeImage: PlatformImage? = nil
+    @State private var showPhotoSelector = false
+    @State private var previewVersion = 0
+    @Query(sort: \PhotoRecord.importedDate, order: .reverse) private var libraryPhotos: [PhotoRecord]
     @Environment(\.dismiss) private var dismiss
+
+    private var effectiveSource: CIImage? { previewSource ?? appState.currentImage }
 
     init(preset: Preset) {
         self.preset = preset
@@ -71,26 +82,49 @@ struct PresetDetailView: View {
                     .fill(Color.gray.opacity(0.2))
                     .aspectRatio(4/3, contentMode: .fit)
 
-                let displayImage = showingBefore ? appState.renderedImage : (afterImage ?? appState.renderedImage)
+                let beforeDisplay: PlatformImage? = previewSource != nil ? beforeImage : appState.renderedImage
+                let displayImage: PlatformImage? = showingBefore
+                    ? beforeDisplay
+                    : (afterImage ?? beforeDisplay)
+
                 if let img = displayImage {
+                    #if os(macOS)
                     Image(nsImage: img)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                } else if appState.currentPhoto != nil {
+                    #else
+                    Image(uiImage: img)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                    #endif
+                } else if effectiveSource != nil {
                     ProgressView()
                 } else {
-                    VStack(spacing: 12) {
-                        Image(systemName: "photo")
-                            .font(.system(size: 48))
-                            .foregroundColor(.secondary)
-
-                        Text("Select a photo to preview")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    Button { showPhotoSelector = true } label: {
+                        VStack(spacing: 12) {
+                            Image(systemName: "photo.badge.plus")
+                                .font(.system(size: 48))
+                                .foregroundColor(.secondary)
+                            Text("Choose a photo to preview")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
+                    .buttonStyle(.plain)
                 }
             }
             .cornerRadius(16)
+
+            // Change photo button
+            Button { showPhotoSelector = true } label: {
+                Label(
+                    effectiveSource == nil ? "Choose Photo" : "Change Photo",
+                    systemImage: "photo.on.rectangle"
+                )
+                .font(.caption)
+                .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
 
             // Before/After toggle — shown once a preview has rendered
             if afterImage != nil {
@@ -101,7 +135,13 @@ struct PresetDetailView: View {
                             .fontWeight(.semibold)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(showingBefore ? Color.blue : Color(NSColor.controlBackgroundColor))
+                            .background(showingBefore ? Color.blue : {
+                                #if os(macOS)
+                                Color(NSColor.controlBackgroundColor)
+                                #else
+                                Color(.secondarySystemBackground)
+                                #endif
+                            }())
                             .foregroundColor(showingBefore ? .white : .primary)
                             .cornerRadius(8)
                     }
@@ -114,14 +154,27 @@ struct PresetDetailView: View {
                             .fontWeight(.semibold)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(!showingBefore ? Color.blue : Color(NSColor.controlBackgroundColor))
+                            .background(!showingBefore ? Color.blue : {
+                                #if os(macOS)
+                                Color(NSColor.controlBackgroundColor)
+                                #else
+                                Color(.secondarySystemBackground)
+                                #endif
+                            }())
                             .foregroundColor(!showingBefore ? .white : .primary)
                             .cornerRadius(8)
                     }
                 }
             }
         }
-        .task(id: strength) {
+        .sheet(isPresented: $showPhotoSelector) {
+            PhotoSelectorSheet(photos: libraryPhotos) { photo in
+                showPhotoSelector = false
+                Task { await loadPreviewPhoto(photo) }
+            }
+            .environmentObject(appState)
+        }
+        .task(id: "\(strength)-\(previewVersion)") {
             await updatePreview()
         }
     }
@@ -158,7 +211,13 @@ struct PresetDetailView: View {
                 .foregroundColor(.secondary)
         }
         .padding()
-        .background(Color(NSColor.controlBackgroundColor))
+        .background {
+            #if os(macOS)
+            Color(NSColor.controlBackgroundColor)
+            #else
+            Color(.secondarySystemBackground)
+            #endif
+        }
         .cornerRadius(12)
     }
 
@@ -266,7 +325,13 @@ struct PresetDetailView: View {
             }
         }
         .padding()
-        .background(Color(NSColor.controlBackgroundColor))
+        .background {
+            #if os(macOS)
+            Color(NSColor.controlBackgroundColor)
+            #else
+            Color(.secondarySystemBackground)
+            #endif
+        }
         .cornerRadius(12)
     }
 
@@ -284,7 +349,13 @@ struct PresetDetailView: View {
             }
         }
         .padding()
-        .background(Color(NSColor.controlBackgroundColor))
+        .background {
+            #if os(macOS)
+            Color(NSColor.controlBackgroundColor)
+            #else
+            Color(.secondarySystemBackground)
+            #endif
+        }
         .cornerRadius(12)
     }
 
@@ -327,7 +398,13 @@ struct PresetDetailView: View {
                     .font(.subheadline)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color(NSColor.controlBackgroundColor))
+                    .background {
+                        #if os(macOS)
+                        Color(NSColor.controlBackgroundColor)
+                        #else
+                        Color(.secondarySystemBackground)
+                        #endif
+                    }
                     .foregroundColor(.primary)
                     .cornerRadius(12)
                 }
@@ -344,7 +421,13 @@ struct PresetDetailView: View {
                         .font(.subheadline)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color(NSColor.controlBackgroundColor))
+                        .background {
+                            #if os(macOS)
+                            Color(NSColor.controlBackgroundColor)
+                            #else
+                            Color(.secondarySystemBackground)
+                            #endif
+                        }
                         .foregroundColor(.primary)
                         .cornerRadius(12)
                     }
@@ -382,7 +465,7 @@ struct PresetDetailView: View {
     // MARK: - Preview Computation
 
     private func updatePreview() async {
-        guard let source = appState.currentImage else {
+        guard let source = effectiveSource else {
             afterImage = nil
             return
         }
@@ -391,10 +474,26 @@ struct PresetDetailView: View {
             scaled.value = instruction.value * strength
             return scaled
         }
-        let currentInstructions = appState.currentEditHistory?.editStack.activeInstructions ?? []
-        let combined = currentInstructions + scaledInstructions
+        // When previewing a library photo, don't layer on the current editor edits
+        let baseInstructions: [EditInstruction] = previewSource != nil
+            ? []
+            : (appState.currentEditHistory?.editStack.activeInstructions ?? [])
+        let combined = baseInstructions + scaledInstructions
         let rendered = await appState.editGraphEngine.render(source: source, instructions: combined)
         afterImage = await appState.imageRenderer.renderPlatformImage(from: rendered)
+    }
+
+    private func loadPreviewPhoto(_ photo: PhotoRecord) async {
+        do {
+            let loaded = try await appState.imageLoader.loadImage(for: photo)
+            let plain = await appState.imageRenderer.renderPlatformImage(from: loaded.image)
+            previewSource = loaded.image
+            beforeImage = plain
+            afterImage = nil
+            previewVersion += 1
+        } catch {
+            logger.error("Failed to load preview photo: \(error)")
+        }
     }
 
     // MARK: - Preset Actions
@@ -472,7 +571,13 @@ private struct InstructionRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color(NSColor.controlBackgroundColor.blended(withFraction: 0.5, of: NSColor.windowBackgroundColor)!))
+        .background {
+            #if os(macOS)
+            Color(NSColor.controlBackgroundColor.blended(withFraction: 0.5, of: NSColor.windowBackgroundColor)!)
+            #else
+            Color(.secondarySystemBackground)
+            #endif
+        }
         .cornerRadius(8)
     }
 
@@ -500,6 +605,62 @@ private struct InstructionRow: View {
             return .red
         } else {
             return .secondary
+        }
+    }
+}
+
+// MARK: - Photo Selector Sheet
+
+private struct PhotoSelectorSheet: View {
+    let photos: [PhotoRecord]
+    let onSelect: (PhotoRecord) -> Void
+
+    @EnvironmentObject var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if photos.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "photo.on.rectangle")
+                            .font(.system(size: 48))
+                            .foregroundColor(.secondary)
+                        Text("No photos in library")
+                            .font(.headline)
+                        Text("Import photos from the Library tab first.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding()
+                } else {
+                    ScrollView {
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 120), spacing: 8)],
+                            spacing: 8
+                        ) {
+                            ForEach(photos) { photo in
+                                PhotoGridItem(photo: photo) {
+                                    onSelect(photo)
+                                }
+                                .frame(height: 120)
+                            }
+                        }
+                        .padding()
+                    }
+                }
+            }
+            .navigationTitle("Choose Photo")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
         }
     }
 }
