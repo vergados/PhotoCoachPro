@@ -17,6 +17,7 @@ struct PhotoCoachProApp: App {
             ContentView()
                 .environmentObject(appState)
                 .modelContainer(appState.database.container)
+                .preferredColorScheme(.dark)
         }
         #if os(macOS)
         .commands {
@@ -79,6 +80,11 @@ struct ContentView: View {
                 }
                 .tag(AppState.AppTab.upscaling)
         }
+        .tint(DS.accent)
+        #if os(iOS)
+        .toolbarBackground(DS.bgRaised, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
+        #endif
     }
 }
 
@@ -103,36 +109,52 @@ struct CritiqueDashboardView: View {
 
     var body: some View {
         NavigationStack {
-            if let result = critiqueResult, let photo = selectedPhoto, analysisMode == .ai {
-                CritiqueResultView(critique: result)
-                    .toolbar {
-                        ToolbarItem(placement: .primaryAction) {
-                            Button("Analyze Another") {
-                                critiqueResult = nil
-                                quickMetricsResult = nil
-                                selectedPhoto = nil
+            Group {
+                if let result = critiqueResult, selectedPhoto != nil, analysisMode == .ai {
+                    CritiqueResultView(critique: result)
+                        .toolbar {
+                            ToolbarItem(placement: .primaryAction) {
+                                Button("Analyze Another") {
+                                    critiqueResult = nil
+                                    quickMetricsResult = nil
+                                    selectedPhoto = nil
+                                }
+                                .foregroundStyle(DS.accent)
                             }
                         }
-                    }
-            } else if let result = quickMetricsResult, let photo = selectedPhoto, analysisMode == .quick {
-                QuickMetricsView(result: result)
-                    .toolbar {
-                        ToolbarItem(placement: .primaryAction) {
-                            Button("Analyze Another") {
-                                critiqueResult = nil
-                                quickMetricsResult = nil
-                                selectedPhoto = nil
+                } else if let result = quickMetricsResult, selectedPhoto != nil, analysisMode == .quick {
+                    QuickMetricsView(result: result)
+                        .toolbar {
+                            ToolbarItem(placement: .primaryAction) {
+                                Button("Analyze Another") {
+                                    critiqueResult = nil
+                                    quickMetricsResult = nil
+                                    selectedPhoto = nil
+                                }
+                                .foregroundStyle(DS.accent)
                             }
                         }
-                    }
-            } else if analysisMode == .skills {
-                SkillDashboardView()
-                    .navigationTitle("Skill Tracking")
-            } else if photos.isEmpty {
-                emptyState
-            } else {
-                photoSelectionView
+                } else if analysisMode == .skills {
+                    SkillDashboardView()
+                        .navigationTitle("Skill Tracking")
+                        .toolbar {
+                            ToolbarItem(placement: .primaryAction) {
+                                Button("Back to Coaching") {
+                                    analysisMode = .ai
+                                }
+                                .foregroundStyle(DS.accent)
+                            }
+                        }
+                } else if photos.isEmpty {
+                    emptyState
+                } else {
+                    photoSelectionView
+                }
             }
+            .background(DS.bg)
+            #if os(iOS)
+            .toolbarBackground(DS.bgRaised, for: .navigationBar)
+            #endif
         }
         .overlay {
             if isAnalyzing {
@@ -142,20 +164,21 @@ struct CritiqueDashboardView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 24) {
             Image(systemName: "star.circle.fill")
-                .font(.system(size: 80))
-                .foregroundColor(.blue)
+                .font(.system(size: 56, weight: .thin))
+                .foregroundStyle(DS.accent)
 
-            Text("AI Photo Coaching")
-                .font(.title)
-                .fontWeight(.bold)
+            VStack(spacing: 8) {
+                Text("AI Photo Coaching")
+                    .dsTitle()
+                    .font(.system(size: 20, weight: .semibold))
 
-            Text("Import photos first to get AI-powered critique and improvement suggestions")
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+                Text("Import photos first to get AI-powered critique\nand improvement suggestions")
+                    .dsCaption()
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            }
 
             Spacer()
         }
@@ -168,9 +191,8 @@ struct CritiqueDashboardView: View {
             VStack(alignment: .leading, spacing: 16) {
                 // Analysis mode picker
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Analysis Type")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    Text("Analysis Type".uppercased())
+                        .dsLabel()
                         .padding(.horizontal)
 
                     Picker("Analysis Mode", selection: $analysisMode) {
@@ -186,24 +208,24 @@ struct CritiqueDashboardView: View {
                          analysisMode == .quick ?
                          "Fast technical metrics (color, sharpness, exposure)" :
                          "Track your photography skill progress over time")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .dsCaption()
                         .padding(.horizontal)
                 }
 
                 Divider()
-                    .padding(.vertical, 8)
+                    .background(DS.border)
+                    .padding(.vertical, 4)
 
-                Text("Select a photo to analyze (\(photos.count) photos)")
-                    .font(.headline)
+                Text("Select a photo to analyze (\(photos.count) photos)".uppercased())
+                    .dsLabel()
                     .padding(.horizontal)
 
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 200, maximum: 300), spacing: 16)], spacing: 16) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 200), spacing: 12)], spacing: 12) {
                     ForEach(photos) { photo in
                         PhotoGridItem(photo: photo) {
                             analyzePhoto(photo)
                         }
-                        .frame(height: 200)
+                        .frame(height: 150)
                     }
                 }
                 .padding(.horizontal)
