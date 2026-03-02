@@ -7,6 +7,10 @@
 
 import SwiftUI
 import SwiftData
+import CoreImage
+import OSLog
+
+private let logger = Logger(subsystem: "com.photocoachpro", category: "DPIUpscaling")
 
 struct DPIUpscalingView: View {
     @EnvironmentObject var appState: AppState
@@ -14,7 +18,7 @@ struct DPIUpscalingView: View {
 
     // Selection state
     @State private var selectedPhoto: PhotoRecord?
-    @State private var upscaledImage: NSImage?
+    @State private var upscaledImage: PlatformImage?
     @State private var upscaledDimensions: CGSize?
 
     // UI state
@@ -30,9 +34,7 @@ struct DPIUpscalingView: View {
     @State private var selectedMethod: UpscalingMethod = .lanczos
 
     var body: some View {
-        let _ = print("🔄 View update - selectedPhoto: \(selectedPhoto?.fileName ?? "nil"), upscaledImage: \(upscaledImage != nil ? "exists" : "nil"), isUpscaling: \(isUpscaling)")
-
-        return VStack(spacing: 0) {
+        VStack(spacing: 0) {
             if photos.isEmpty {
                 emptyState
             } else {
@@ -40,13 +42,18 @@ struct DPIUpscalingView: View {
                 compactToolbar
                     .padding(.horizontal)
                     .padding(.vertical, 8)
-                    .background(Color(NSColor.windowBackgroundColor))
+                    .background {
+                        #if os(macOS)
+                        Color(nsColor: NSColor.windowBackgroundColor)
+                        #else
+                        Color(.systemBackground)
+                        #endif
+                    }
 
                 Divider()
 
                 // Main content
                 ZStack {
-                    // Content layer
                     if let image = upscaledImage, let dims = upscaledDimensions, let photo = selectedPhoto {
                         upscaledPreview(image: image, dimensions: dims, photo: photo)
                     } else if let photo = selectedPhoto {
@@ -104,7 +111,13 @@ struct DPIUpscalingView: View {
                     Divider()
                     thumbnailStrip
                         .frame(height: 100)
-                        .background(Color(NSColor.controlBackgroundColor))
+                        .background {
+                            #if os(macOS)
+                            Color(nsColor: NSColor.controlBackgroundColor)
+                            #else
+                            Color(.secondarySystemBackground)
+                            #endif
+                        }
                 }
             }
         }
@@ -121,7 +134,7 @@ struct DPIUpscalingView: View {
                 }
             }
             .frame(width: 160)
-            .onChange(of: selectedCategory) { _ in
+            .onChange(of: selectedCategory) {
                 updateSelectedSize()
             }
 
@@ -136,7 +149,6 @@ struct DPIUpscalingView: View {
             // Orientation toggle
             Button(action: {
                 isLandscape.toggle()
-                // Clear previous result since dimensions changed
                 upscaledImage = nil
                 upscaledDimensions = nil
             }) {
@@ -236,21 +248,26 @@ struct OriginalImagePreview: View {
     let photo: PhotoRecord
     let appState: AppState
 
-    @State private var loadedImage: NSImage?
+    @State private var loadedImage: PlatformImage?
     @State private var isLoading = true
     @State private var loadError: String?
 
     var body: some View {
         ZStack {
-            // Black background
             Color.black
 
-            // Content
             if let image = loadedImage {
+                #if canImport(UIKit)
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .padding()
+                #elseif canImport(AppKit)
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .padding()
+                #endif
             } else if isLoading {
                 VStack(spacing: 16) {
                     ProgressView()
@@ -285,7 +302,6 @@ struct OriginalImagePreview: View {
                         Text("Original: \(photo.width)×\(photo.height) px")
                             .font(.caption)
                             .foregroundColor(.white)
-
                         Text("Ready to upscale")
                             .font(.caption2)
                             .foregroundColor(.green)
@@ -307,11 +323,9 @@ struct OriginalImagePreview: View {
         loadError = nil
 
         do {
-            print("🔍 Loading image: \(photo.fileName)")
-            let loaded = try await appState.imageLoader.load(from: photo.fileURL)
-            print("✅ Image loaded successfully")
+            logger.debug("Loading image: \(photo.fileName)")
+            let loaded = try await appState.imageLoader.loadImage(for: photo)
 
-            // Convert CIImage to NSImage
             let context = CIContext()
             guard let cgImage = context.createCGImage(loaded.image, from: loaded.image.extent) else {
                 throw NSError(domain: "PhotoCoachPro", code: -1, userInfo: [
@@ -319,19 +333,18 @@ struct OriginalImagePreview: View {
                 ])
             }
 
-            let size = NSSize(width: loaded.image.extent.width, height: loaded.image.extent.height)
-            let nsImage = NSImage(size: size)
-            nsImage.lockFocus()
-            let graphicsContext = NSGraphicsContext.current?.cgContext
-            graphicsContext?.draw(cgImage, in: NSRect(origin: .zero, size: size))
-            nsImage.unlockFocus()
+            #if canImport(UIKit)
+            let platformImage = UIImage(cgImage: cgImage)
+            #elseif canImport(AppKit)
+            let platformImage = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+            #endif
 
             await MainActor.run {
-                self.loadedImage = nsImage
+                self.loadedImage = platformImage
                 self.isLoading = false
             }
         } catch {
-            print("❌ Failed to load image: \(error)")
+            logger.error("Failed to load image: \(error)")
             await MainActor.run {
                 self.loadError = error.localizedDescription
                 self.isLoading = false
@@ -343,18 +356,22 @@ struct OriginalImagePreview: View {
 // MARK: - Upscaled Preview Extension
 
 extension DPIUpscalingView {
-    private func upscaledPreview(image: NSImage, dimensions: CGSize, photo: PhotoRecord) -> some View {
-        return ZStack {
-            // Black background
+    private func upscaledPreview(image: PlatformImage, dimensions: CGSize, photo: PhotoRecord) -> some View {
+        ZStack {
             Color.black
 
-            // Upscaled image
+            #if canImport(UIKit)
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .padding()
+            #elseif canImport(AppKit)
             Image(nsImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .padding()
+            #endif
 
-            // Info overlay (bottom center)
             VStack {
                 Spacer()
                 VStack(spacing: 8) {
@@ -451,7 +468,6 @@ extension DPIUpscalingView {
     }
 
     private func updateSelectedSize() {
-        // When category changes, pick first size in that category
         if let firstSize = availableSizes.first {
             selectedSize = firstSize
         }
@@ -465,12 +481,10 @@ extension DPIUpscalingView {
             return
         }
 
-        // Check if scale is reasonable before starting
         let dims = currentPrintDimensions
         let targetWidth = Int(dims.width * Double(selectedDPI))
         let targetHeight = Int(dims.height * Double(selectedDPI))
 
-        // Warn if output would be extremely large
         let megapixels = (targetWidth * targetHeight) / 1_000_000
         if megapixels > 500 {
             errorMessage = "Output too large: \(megapixels)MP. Choose smaller size or lower DPI."
@@ -482,16 +496,14 @@ extension DPIUpscalingView {
 
         Task {
             do {
-                let loaded = try await appState.imageLoader.load(from: photo.fileURL)
+                let loaded = try await appState.imageLoader.loadImage(for: photo)
                 let actualWidth = Int(loaded.image.extent.width)
                 let actualHeight = Int(loaded.image.extent.height)
 
-                // Calculate scale factor using ACTUAL loaded image dimensions
                 let scaleX = Double(targetWidth) / Double(actualWidth)
                 let scaleY = Double(targetHeight) / Double(actualHeight)
                 let scale = max(scaleX, scaleY)
 
-                // Check if we're actually upscaling or downscaling
                 if scale < 1.0 {
                     await MainActor.run {
                         errorMessage = "Image is already larger than target size. No upscaling needed."
@@ -506,12 +518,11 @@ extension DPIUpscalingView {
                     method: selectedMethod
                 )
 
-                // Convert CIImage to NSImage
-                let nsImage = convertToNSImage(upscaledCIImage)
+                let platformImage = convertToPlatformImage(upscaledCIImage)
                 let resultDims = upscaledCIImage.extent.size
 
                 await MainActor.run {
-                    upscaledImage = nsImage
+                    upscaledImage = platformImage
                     upscaledDimensions = resultDims
                     isUpscaling = false
                 }
@@ -524,61 +535,59 @@ extension DPIUpscalingView {
         }
     }
 
-    private func convertToNSImage(_ ciImage: CIImage) -> NSImage {
-        // Create a CGImage from CIImage using CIContext
+    private func convertToPlatformImage(_ ciImage: CIImage) -> PlatformImage {
         let context = CIContext(options: [.useSoftwareRenderer: false])
-
         guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
-            print("⚠️ Failed to create CGImage, using fallback")
-            // Fallback to NSCIImageRep
-            let rep = NSCIImageRep(ciImage: ciImage)
-            let nsImage = NSImage(size: rep.size)
-            nsImage.addRepresentation(rep)
+            logger.warning("Failed to create CGImage, using fallback render")
+            #if canImport(UIKit)
+            return UIImage(ciImage: ciImage)
+            #elseif canImport(AppKit)
+            let bitmapRep = NSBitmapImageRep(ciImage: ciImage)
+            let nsImage = NSImage(size: ciImage.extent.size)
+            nsImage.addRepresentation(bitmapRep)
             return nsImage
+            #endif
         }
-
-        let size = NSSize(width: ciImage.extent.width, height: ciImage.extent.height)
-        let nsImage = NSImage(size: size)
-
-        nsImage.lockFocus()
-        let graphicsContext = NSGraphicsContext.current?.cgContext
-        graphicsContext?.draw(cgImage, in: NSRect(origin: .zero, size: size))
-        nsImage.unlockFocus()
-
-        return nsImage
+        #if canImport(UIKit)
+        return UIImage(cgImage: cgImage)
+        #elseif canImport(AppKit)
+        return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+        #endif
     }
 
-    private func saveUpscaledImage(_ image: NSImage) {
+    private func saveUpscaledImage(_ image: PlatformImage) {
         Task {
             do {
-                // Create output directory
                 let picturesURL = FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask)[0]
                 let outputDir = picturesURL.appendingPathComponent("PhotoCoachPro/Upscaled", isDirectory: true)
-
                 try FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
 
-                // Generate filename with timestamp
                 let timestamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
                 let originalName = selectedPhoto?.fileName.replacingOccurrences(of: " ", with: "_") ?? "image"
-                let baseName = (originalName as NSString).deletingPathExtension
+                let baseName = URL(fileURLWithPath: originalName).deletingPathExtension().lastPathComponent
                 let filename = "\(baseName)_upscaled_\(timestamp).png"
                 let fileURL = outputDir.appendingPathComponent(filename)
 
-                // Convert and save as PNG
-                guard let tiffData = image.tiffRepresentation,
-                      let bitmapImage = NSBitmapImageRep(data: tiffData),
-                      let pngData = bitmapImage.representation(using: .png, properties: [:]) else {
+                #if canImport(UIKit)
+                guard let pngData = image.pngData() else {
                     throw NSError(domain: "PhotoCoachPro", code: -1, userInfo: [
-                        NSLocalizedDescriptionKey: "Failed to convert image"
+                        NSLocalizedDescriptionKey: "Failed to convert image to PNG"
                     ])
                 }
+                #elseif canImport(AppKit)
+                guard let tiffData = image.tiffRepresentation,
+                      let bitmapRep = NSBitmapImageRep(data: tiffData),
+                      let pngData = bitmapRep.representation(using: .png, properties: [:]) else {
+                    throw NSError(domain: "PhotoCoachPro", code: -1, userInfo: [
+                        NSLocalizedDescriptionKey: "Failed to convert image to PNG"
+                    ])
+                }
+                #endif
 
                 try pngData.write(to: fileURL)
 
                 await MainActor.run {
                     errorMessage = "✅ Saved to: \(outputDir.path)"
-
-                    // Auto-dismiss success message after 5 seconds
                     Task {
                         try? await Task.sleep(nanoseconds: 5_000_000_000)
                         await MainActor.run {
@@ -587,9 +596,6 @@ extension DPIUpscalingView {
                             }
                         }
                     }
-
-                    // Reveal in Finder
-                    NSWorkspace.shared.activateFileViewerSelecting([fileURL])
                 }
             } catch {
                 await MainActor.run {
@@ -610,21 +616,27 @@ struct ThumbnailButton: View {
     var body: some View {
         Button(action: action) {
             Group {
-                if let nsImage = NSImage(contentsOf: photo.fileURL) {
-                    Image(nsImage: nsImage)
+                #if canImport(UIKit)
+                if let platformImage = UIImage(contentsOfFile: photo.fileURL.path) {
+                    Image(uiImage: platformImage)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: 80, height: 80)
                         .clipped()
                 } else {
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 80, height: 80)
-                        .overlay(
-                            Image(systemName: "photo")
-                                .foregroundColor(.gray)
-                        )
+                    thumbnailPlaceholder
                 }
+                #elseif canImport(AppKit)
+                if let platformImage = NSImage(contentsOfFile: photo.fileURL.path) {
+                    Image(nsImage: platformImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 80, height: 80)
+                        .clipped()
+                } else {
+                    thumbnailPlaceholder
+                }
+                #endif
             }
             .cornerRadius(4)
             .overlay(
@@ -633,6 +645,16 @@ struct ThumbnailButton: View {
             )
         }
         .buttonStyle(.plain)
+    }
+
+    private var thumbnailPlaceholder: some View {
+        Rectangle()
+            .fill(Color.gray.opacity(0.3))
+            .frame(width: 80, height: 80)
+            .overlay(
+                Image(systemName: "photo")
+                    .foregroundColor(.gray)
+            )
     }
 }
 
@@ -710,4 +732,3 @@ struct UpscalingPrintSize: Identifiable, Hashable {
         UpscalingPrintSize(widthInches: 40, heightInches: 120, category: .panoramicLarge),
     ]
 }
-
