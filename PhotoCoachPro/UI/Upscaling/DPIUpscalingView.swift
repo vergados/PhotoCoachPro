@@ -39,21 +39,12 @@ struct DPIUpscalingView: View {
             if photos.isEmpty {
                 emptyState
             } else {
-                // Compact toolbar
-                compactToolbar
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-                    .background {
-                        #if os(macOS)
-                        Color(nsColor: NSColor.windowBackgroundColor)
-                        #else
-                        Color(.systemBackground)
-                        #endif
-                    }
+                // Settings bar — scrollable so nothing clips on small screens
+                settingsBar
 
                 Divider()
 
-                // Main content
+                // Photo preview
                 ZStack {
                     if let image = upscaledImage, let dims = upscaledDimensions, let photo = selectedPhoto {
                         upscaledPreview(image: image, dimensions: dims, photo: photo)
@@ -63,7 +54,7 @@ struct DPIUpscalingView: View {
                         photoSelectionPrompt
                     }
 
-                    // Full-screen loading overlay — impossible to miss
+                    // Full-screen loading overlay
                     if isUpscaling {
                         Color.black.opacity(0.55)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -84,7 +75,7 @@ struct DPIUpscalingView: View {
                     Text(errorMessage ?? "An unknown error occurred.")
                 }
 
-                // Thumbnail strip (toggleable)
+                // Thumbnail strip
                 if showThumbnails {
                     Divider()
                     thumbnailStrip
@@ -97,91 +88,150 @@ struct DPIUpscalingView: View {
                             #endif
                         }
                 }
+
+                Divider()
+
+                // Dedicated upscale action bar — always visible, always accessible
+                upscaleActionBar
             }
         }
     }
 
-    // MARK: - Compact Toolbar
+    // MARK: - Settings Bar (scrollable)
 
-    private var compactToolbar: some View {
-        HStack(spacing: 12) {
-            // Category picker
-            Picker("Category", selection: $selectedCategory) {
-                ForEach(UpscalingPrintSizeCategory.allCases, id: \.self) { category in
-                    Text(category.displayName).tag(category)
+    private var settingsBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 16) {
+                // Category
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Category")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Picker("Category", selection: $selectedCategory) {
+                        ForEach(UpscalingPrintSizeCategory.allCases, id: \.self) { cat in
+                            Text(cat.displayName).tag(cat)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: selectedCategory) { updateSelectedSize() }
+                }
+
+                // Size
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Print Size")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Picker("Size", selection: $selectedSize) {
+                        ForEach(availableSizes, id: \.id) { size in
+                            Text(size.displayName).tag(size)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+
+                // Orientation
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Orientation")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Button {
+                        isLandscape.toggle()
+                        upscaledImage = nil
+                        upscaledDimensions = nil
+                    } label: {
+                        Label(isLandscape ? "Landscape" : "Portrait",
+                              systemImage: isLandscape ? "rectangle" : "rectangle.portrait")
+                            .font(.subheadline)
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                // DPI
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("DPI")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Picker("DPI", selection: $selectedDPI) {
+                        Text("150").tag(150)
+                        Text("240").tag(240)
+                        Text("300").tag(300)
+                        Text("600").tag(600)
+                    }
+                    .pickerStyle(.menu)
+                }
+
+                // Method
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Method")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Picker("Method", selection: $selectedMethod) {
+                        Text("Lanczos").tag(UpscalingMethod.lanczos)
+                        Text("Bicubic").tag(UpscalingMethod.bicubic)
+                        Text("AI Enhanced").tag(UpscalingMethod.aiEnhanced)
+                    }
+                    .pickerStyle(.menu)
+                }
+
+                // Thumbnail toggle
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Thumbnails")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Button {
+                        showThumbnails.toggle()
+                    } label: {
+                        Image(systemName: showThumbnails ? "photo.stack.fill" : "photo.stack")
+                    }
+                    .buttonStyle(.bordered)
                 }
             }
-            .frame(width: 160)
-            .onChange(of: selectedCategory) {
-                updateSelectedSize()
-            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+        }
+        .background {
+            #if os(macOS)
+            Color(nsColor: NSColor.windowBackgroundColor)
+            #else
+            Color(.systemBackground)
+            #endif
+        }
+    }
 
-            // Size picker
-            Picker("Size", selection: $selectedSize) {
-                ForEach(availableSizes, id: \.id) { size in
-                    Text(size.displayName).tag(size)
-                }
-            }
-            .frame(width: 140)
+    // MARK: - Upscale Action Bar
 
-            // Orientation toggle
-            Button(action: {
-                isLandscape.toggle()
-                upscaledImage = nil
-                upscaledDimensions = nil
-            }) {
-                HStack(spacing: 4) {
-                    Image(systemName: isLandscape ? "rectangle" : "rectangle.portrait")
-                    Text(isLandscape ? "Landscape" : "Portrait")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(isLandscape ? Color.blue.opacity(0.15) : Color.gray.opacity(0.1))
-                .cornerRadius(6)
-            }
-            .buttonStyle(.plain)
-            .help(isLandscape ? "Switch to Portrait" : "Switch to Landscape")
-
-            // DPI picker
-            Picker("DPI", selection: $selectedDPI) {
-                Text("150 DPI").tag(150)
-                Text("240 DPI").tag(240)
-                Text("300 DPI").tag(300)
-                Text("600 DPI").tag(600)
-            }
-            .frame(width: 100)
-
-            // Method picker
-            Picker("Method", selection: $selectedMethod) {
-                Text("Lanczos").tag(UpscalingMethod.lanczos)
-                Text("Bicubic").tag(UpscalingMethod.bicubic)
-                Text("AI Enhanced").tag(UpscalingMethod.aiEnhanced)
-            }
-            .frame(width: 120)
-
-            Spacer()
-
-            // Info display
+    private var upscaleActionBar: some View {
+        VStack(spacing: 8) {
+            // Scale info row
             if let photo = selectedPhoto {
                 scaleInfoDisplay(photo: photo)
             }
 
-            // Thumbnail toggle
-            Button(action: { showThumbnails.toggle() }) {
-                Image(systemName: showThumbnails ? "photo.stack.fill" : "photo.stack")
-                    .frame(width: 28, height: 28)
-            }
-            .help(showThumbnails ? "Hide Thumbnails" : "Show Thumbnails")
-
-            // Upscale button
+            // The button
             Button(action: performUpscale) {
-                Text("Upscale")
-                    .fontWeight(.semibold)
+                if isUpscaling {
+                    Label("Upscaling…", systemImage: "arrow.up.forward.square")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    Label("Upscale Photo", systemImage: "arrow.up.forward.square")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                }
             }
             .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .tint(DS.accent)
             .disabled(selectedPhoto == nil || isUpscaling)
+            .padding(.horizontal)
+        }
+        .padding(.vertical, 12)
+        .background {
+            #if os(macOS)
+            Color(nsColor: NSColor.windowBackgroundColor)
+            #else
+            Color(.systemBackground)
+            #endif
         }
     }
 
@@ -195,22 +245,20 @@ struct DPIUpscalingView: View {
         let scaleY = Double(reqHeight) / Double(photo.height)
         let scaleFactor = max(scaleX, scaleY)
 
-        return HStack(spacing: 4) {
-            Text("\(String(format: "%.2f", scaleFactor))×")
-                .foregroundColor(.secondary)
+        return HStack(spacing: 6) {
+            Text("Original: \(photo.width)×\(photo.height)px")
                 .font(.caption)
+                .foregroundStyle(.secondary)
             Image(systemName: "arrow.right")
                 .font(.caption2)
-                .foregroundColor(.secondary)
-            Text("\(reqWidth)×\(reqHeight)")
-                .foregroundColor(.blue)
+                .foregroundStyle(.secondary)
+            Text("Output: \(reqWidth)×\(reqHeight)px (\(String(format: "%.1f", scaleFactor))×)")
                 .font(.caption)
                 .fontWeight(.medium)
+                .foregroundStyle(scaleFactor > 1 ? DS.accent : .secondary)
+            Spacer()
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color.blue.opacity(0.1))
-        .cornerRadius(6)
+        .padding(.horizontal)
     }
 
     // MARK: - Original Preview
