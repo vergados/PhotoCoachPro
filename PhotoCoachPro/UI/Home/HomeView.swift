@@ -16,40 +16,32 @@ struct HomeView: View {
     @State private var selectedItem: PhotosPickerItem?
     @State private var showingFilePicker = false
     @State private var showingImportMenu = false
+    @State private var showPhotosPicker = false
     @State private var showSettings = false
     @ObservedObject private var privacySettings = PrivacySettings.shared
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                // Modern gradient background
-                LinearGradient(
-                    colors: [
-                        Color(nsColor: NSColor.windowBackgroundColor),
-                        Color(nsColor: NSColor.controlBackgroundColor).opacity(0.3)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
-
-                ScrollView {
-                    VStack(spacing: 24) {
-                        if photos.isEmpty {
-                            emptyState
-                        } else {
-                            if privacySettings.cloudSyncEnabled {
-                                SyncStatusView()
-                                    .padding(.horizontal)
-                            }
-                            statsBar
-                            photoGrid
+            ScrollView {
+                VStack(spacing: 24) {
+                    if photos.isEmpty {
+                        emptyState
+                    } else {
+                        if privacySettings.cloudSyncEnabled {
+                            SyncStatusView()
+                                .padding(.horizontal)
                         }
+                        statsBar
+                        photoGrid
                     }
-                    .padding(.top, 20)
                 }
+                .padding(.top, 20)
             }
+            .background(DS.bg)
             .navigationTitle("Photo Library")
+            #if os(iOS)
+            .toolbarBackground(DS.bgRaised, for: .navigationBar)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     importButton
@@ -57,6 +49,7 @@ struct HomeView: View {
                 ToolbarItem(placement: .primaryAction) {
                     Button { showSettings = true } label: {
                         Image(systemName: "gear")
+                            .foregroundStyle(DS.textSecondary)
                     }
                     .accessibilityLabel("Settings")
                 }
@@ -66,8 +59,12 @@ struct HomeView: View {
             }
             .onChange(of: selectedItem) { _, newItem in
                 Task {
-                    if let identifier = newItem?.itemIdentifier {
-                        await appState.importPhotoFromLibrary(assetIdentifier: identifier)
+                    guard let newItem else { return }
+                    do {
+                        guard let data = try await newItem.loadTransferable(type: Data.self) else { return }
+                        await appState.importPhotoFromPickerData(data)
+                    } catch {
+                        appState.errorMessage = "Failed to load photo: \(error.localizedDescription)"
                     }
                 }
             }
@@ -90,88 +87,86 @@ struct HomeView: View {
 
     private var emptyState: some View {
         VStack(spacing: 32) {
-            // Modern icon with gradient
             ZStack {
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.blue.opacity(0.2), Color.purple.opacity(0.2)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 160, height: 160)
+                    .fill(DS.accentDim)
+                    .frame(width: 120, height: 120)
 
                 Image(systemName: "photo.on.rectangle.angled")
-                    .font(.system(size: 72, weight: .thin))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.blue, .purple],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .font(.system(size: 52, weight: .thin))
+                    .foregroundStyle(DS.accent)
             }
 
-            VStack(spacing: 12) {
-                Text("Your Photo Library Awaits")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
+            VStack(spacing: 10) {
+                Text("Photo Library")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(DS.textPrimary)
 
                 Text("Import your first photo to unlock AI-powered editing,\nprofessional presets, and expert coaching")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 13))
+                    .foregroundStyle(DS.textSecondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
             }
 
             importButton
                 .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .tint(.blue)
+                .tint(DS.accent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(40)
     }
 
     private var statsBar: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 12) {
             StatCard(
                 icon: "photo.stack",
                 value: "\(photos.count)",
-                label: "Photos",
-                color: .blue
+                label: "Photos"
             )
 
             StatCard(
                 icon: "wand.and.stars",
                 value: "\(photos.filter { $0.editRecord != nil }.count)",
-                label: "Edited",
-                color: .purple
+                label: "Edited"
             )
 
             StatCard(
                 icon: "star.fill",
                 value: "\(photos.filter { $0.isFavorite }.count)",
-                label: "Favorites",
-                color: .orange
+                label: "Favorites"
             )
         }
         .padding(.horizontal, 20)
     }
 
     private var photoGrid: some View {
-        LazyVGrid(columns: gridColumns, spacing: 16) {
+        LazyVGrid(columns: gridColumns, spacing: 12) {
             ForEach(photos) { photo in
                 PhotoGridItem(photo: photo) {
                     Task {
                         await appState.openPhoto(photo)
                     }
                 }
+                .contextMenu {
+                    Button(role: .destructive) {
+                        deletePhoto(photo)
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
             }
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 20)
+    }
+
+    private func deletePhoto(_ photo: PhotoRecord) {
+        // Remove the sandboxed file if this photo was imported by data copy
+        if photo.resolvedSourceType == .fileSystem, !photo.filePath.isEmpty {
+            try? FileManager.default.removeItem(at: photo.fileURL)
+        }
+        try? appState.database.deletePhoto(photo)
     }
 
     private var importButton: some View {
@@ -181,13 +176,16 @@ struct HomeView: View {
             }
 
             #if os(iOS)
-            PhotosPicker(selection: $selectedItem, matching: .images) {
+            Button(action: { showPhotosPicker = true }) {
                 Label("From Photos", systemImage: "photo.on.rectangle")
             }
             #endif
         } label: {
             Label("Import Photo", systemImage: "plus.circle.fill")
         }
+        #if os(iOS)
+        .photosPicker(isPresented: $showPhotosPicker, selection: $selectedItem, matching: .images)
+        #endif
         .fileImporter(
             isPresented: $showingFilePicker,
             allowedContentTypes: [.image, .jpeg, .png, .heic, .rawImage],
@@ -200,7 +198,6 @@ struct HomeView: View {
                         let accessGranted = url.startAccessingSecurityScopedResource()
                         defer { if accessGranted { url.stopAccessingSecurityScopedResource() } }
 
-                        // Create a persistent bookmark while security-scoped access is active
                         #if os(macOS)
                         let bookmarkData = try? url.bookmarkData(
                             options: .withSecurityScope,
@@ -233,45 +230,30 @@ struct HomeView: View {
         [GridItem(.adaptive(minimum: 200, maximum: 300), spacing: 12)]
         #endif
     }
-
 }
 
-// MARK: - Modern Stat Card Component
+// MARK: - Stat Card
 
 struct StatCard: View {
     let icon: String
     let value: String
     let label: String
-    let color: Color
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [color, color.opacity(0.7)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(DS.accent)
 
-            VStack(spacing: 4) {
-                Text(value)
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
+            Text(value)
+                .dsValue()
 
-                Text(label)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Text(label)
+                .dsLabel()
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(nsColor: NSColor.controlBackgroundColor))
-                .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 4)
-        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 14)
+        .dsCard()
     }
 }
