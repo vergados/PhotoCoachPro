@@ -52,7 +52,7 @@ struct DPIUpscalingView: View {
 
                 Divider()
 
-                // Main content
+                // Main content with overlays inside the ZStack so they are always visible
                 ZStack {
                     if let image = upscaledImage, let dims = upscaledDimensions, let photo = selectedPhoto {
                         upscaledPreview(image: image, dimensions: dims, photo: photo)
@@ -61,50 +61,52 @@ struct DPIUpscalingView: View {
                     } else {
                         photoSelectionPrompt
                     }
-                }
 
-                // Loading indicator (bottom right corner, doesn't block view)
-                if isUpscaling {
-                    HStack {
-                        Spacer()
+                    // Loading indicator — bottom-right corner, floats over content
+                    if isUpscaling {
                         VStack {
                             Spacer()
-                            HStack(spacing: 12) {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                Text("Upscaling...")
-                                    .font(.subheadline)
+                            HStack {
+                                Spacer()
+                                HStack(spacing: 12) {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                    Text("Upscaling...")
+                                        .font(.subheadline)
+                                }
+                                .padding()
+                                .background(.ultraThickMaterial)
+                                .cornerRadius(8)
+                                .shadow(radius: 4)
+                                .padding()
                             }
-                            .padding()
-                            .background(.ultraThickMaterial)
-                            .cornerRadius(8)
-                            .shadow(radius: 4)
-                            .padding()
                         }
                     }
-                }
 
-                // Error message overlay
-                if let error = errorMessage {
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.yellow)
-                            Text(error)
-                                .foregroundColor(.white)
-                            Button("Dismiss") {
-                                errorMessage = nil
+                    // Error message — bottom bar, floats over content
+                    if let error = errorMessage {
+                        VStack {
+                            Spacer()
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.yellow)
+                                Text(error)
+                                    .foregroundColor(.white)
+                                Spacer()
+                                Button("Dismiss") {
+                                    errorMessage = nil
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.red)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .tint(.red)
+                            .padding()
+                            .background(Color.red.opacity(0.9))
+                            .cornerRadius(8)
+                            .padding()
                         }
-                        .padding()
-                        .background(Color.red.opacity(0.9))
-                        .cornerRadius(8)
-                        .padding()
                     }
                 }
+                .frame(maxHeight: .infinity)
 
                 // Thumbnail strip (toggleable)
                 if showThumbnails {
